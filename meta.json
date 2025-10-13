@@ -1,0 +1,93 @@
+{
+  "version": "3.0.0",
+
+  "metadata": {
+    "id": "extension-auth0",
+    "name": "Auth0 Authentication",
+    "kind": "extension",
+    "layers": ["backend", "frontend", "ops"],
+    "type": "auth0",
+    "description": "Add Auth0 OAuth2 authentication across all layers",
+    "version": "1.0.0",
+    "author": "Genesis Team",
+    "tags": ["auth", "security", "auth0", "oauth2"],
+    "compatibleWith": ["spring", "react"],
+    "requires": []
+  },
+
+  "fields": [
+    {
+      "key": "roleClaimKey",
+      "label": "Role Claim Key",
+      "type": "text",
+      "default": "https://{{domain}}/roles",
+      "required": true,
+      "description": "Custom claim key for user roles in Auth0 token",
+      "category": "configuration"
+    },
+    {
+      "key": "enableRbac",
+      "label": "Enable Role-Based Access Control",
+      "type": "boolean",
+      "default": true,
+      "required": false,
+      "description": "Enable RBAC with role annotations",
+      "category": "features"
+    }
+  ],
+
+  "dependencies": {
+    "gradle": [
+      "implementation 'org.springframework.boot:spring-boot-starter-security'",
+      "implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'"
+    ],
+    "npm": {
+      "dependencies": {
+        "@auth0/auth0-react": "^2.0.0"
+      }
+    }
+  },
+
+  "generation": {
+    "layers": {
+      "backend": {},
+      "frontend": {},
+      "ops": {}
+    }
+  },
+
+  "runtimeConfigTemplate": [
+    {
+      "key": "AUTH0_DOMAIN",
+      "description": "Auth0 domain (e.g., your-tenant.auth0.com)",
+      "example": "your-tenant.auth0.com",
+      "required": true,
+      "secret": false,
+      "targets": ["backend", "frontend"]
+    },
+    {
+      "key": "AUTH0_CLIENT_ID",
+      "description": "Auth0 application client ID",
+      "example": "your-client-id",
+      "required": true,
+      "secret": false,
+      "targets": ["backend", "frontend"]
+    },
+    {
+      "key": "AUTH0_CLIENT_SECRET",
+      "description": "Auth0 application client secret (backend only)",
+      "example": "your-client-secret",
+      "required": true,
+      "secret": true,
+      "targets": ["backend"]
+    },
+    {
+      "key": "AUTH0_AUDIENCE",
+      "description": "Auth0 API audience/identifier",
+      "example": "https://{{domain}}/api",
+      "required": true,
+      "secret": false,
+      "targets": ["backend", "frontend"]
+    }
+  ]
+}

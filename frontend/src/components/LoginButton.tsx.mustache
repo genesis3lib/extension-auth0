@@ -1,0 +1,23 @@
+import { useAuth } from '../hooks/useAuth';
+
+interface LoginButtonProps {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+/**
+ * Login button component
+ * Redirects to Auth0 login page
+ */
+export function LoginButton({ children = 'Log In', className }: LoginButtonProps) {
+  const { loginWithRedirect } = useAuth();
+
+  return (
+    <button
+      onClick={() => loginWithRedirect()}
+      className={className}
+    >
+      {children}
+    </button>
+  );
+}

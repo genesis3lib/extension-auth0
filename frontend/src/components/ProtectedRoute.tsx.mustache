@@ -1,0 +1,37 @@
+import { useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
+
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+}
+
+/**
+ * Protected route component
+ * Redirects to login if not authenticated
+ *
+ * Usage:
+ * ```tsx
+ * <ProtectedRoute>
+ *   <DashboardPage />
+ * </ProtectedRoute>
+ * ```
+ */
+export function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const { isAuthenticated, isLoading, loginWithRedirect } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      loginWithRedirect();
+    }
+  }, [isLoading, isAuthenticated, loginWithRedirect]);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  return <>{children}</>;
+}

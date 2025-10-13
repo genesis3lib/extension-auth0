@@ -1,0 +1,23 @@
+import { useAuth } from '../hooks/useAuth';
+
+interface LogoutButtonProps {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+/**
+ * Logout button component
+ * Logs out the user and redirects to home page
+ */
+export function LogoutButton({ children = 'Log Out', className }: LogoutButtonProps) {
+  const { logout } = useAuth();
+
+  return (
+    <button
+      onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+      className={className}
+    >
+      {children}
+    </button>
+  );
+}

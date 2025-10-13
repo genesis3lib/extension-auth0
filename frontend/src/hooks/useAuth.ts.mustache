@@ -1,0 +1,39 @@
+import { useAuth0 } from '@auth0/auth0-react';
+
+/**
+ * Custom hook to access Auth0 authentication
+ *
+ * Usage:
+ * ```tsx
+ * const { user, isAuthenticated, isLoading, loginWithRedirect, logout } = useAuth();
+ *
+ * if (isLoading) return <div>Loading...</div>;
+ *
+ * if (!isAuthenticated) {
+ *   return <button onClick={() => loginWithRedirect()}>Log In</button>;
+ * }
+ *
+ * return (
+ *   <div>
+ *     <p>Welcome {user?.name}</p>
+ *     <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}>
+ *       Log Out
+ *     </button>
+ *   </div>
+ * );
+ * ```
+ */
+export function useAuth() {
+  const auth = useAuth0();
+
+  return {
+    user: auth.user,
+    isAuthenticated: auth.isAuthenticated,
+    isLoading: auth.isLoading,
+    loginWithRedirect: auth.loginWithRedirect,
+    logout: auth.logout,
+    getAccessTokenSilently: auth.getAccessTokenSilently,
+    getAccessTokenWithPopup: auth.getAccessTokenWithPopup,
+    getIdTokenClaims: auth.getIdTokenClaims,
+  };
+}
