@@ -15,7 +15,7 @@
     "requires": []
   },
 
-  "fields": [
+  "scaffoldConfigTemplate": [
     {
       "key": "roleClaimKey",
       "label": "Role Claim Key",
