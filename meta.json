@@ -48,6 +48,16 @@
     }
   },
 
+  "files": [
+    "backend/src/main/java/{{packagePath}}/config/SecurityConfig.java.mustache",
+    "frontend/src/providers/Auth0Provider.tsx.mustache",
+    "frontend/src/components/ProtectedRoute.tsx.mustache",
+    "frontend/src/components/LoginButton.tsx.mustache",
+    "frontend/src/components/LogoutButton.tsx.mustache",
+    "frontend/src/hooks/useAuth.ts.mustache",
+    "ops/secrets.yaml.mustache"
+  ],
+
   "generation": {
     "layers": {
       "backend": {},
