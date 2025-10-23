@@ -1,0 +1,100 @@
+package {{{javaPackageFull}}}.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+
+import java.util.List;
+
+/**
+ * Auth0 Security Configuration for {{{projectName}}}
+ *
+ * Provides:
+ * - JWT decoder for Auth0 tokens
+ * - Role claim mapping to Spring Security authorities
+ * - Audience validation
+ */
+@Configuration
+@Profile("auth0")
+public class SecurityAuth0Config {
+
+    @Value("${app.auth0.issuer}")
+    private String issuer;
+
+    @Value("${app.auth0.audiences}")
+    private List<String> audiences;
+
+    @Value("${app.auth0.role-claim-key}")
+    private String roleClaimKey;
+
+    /**
+     * Configures JWT decoder for Auth0 tokens
+     */
+    @Bean
+    public JwtDecoder jwtDecoder() {
+        NimbusJwtDecoder jwtDecoder = JwtDecoders.fromIssuerLocation(issuer);
+
+        // Validate audience
+        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audiences);
+        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuer);
+        OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);
+
+        jwtDecoder.setJwtValidator(withAudience);
+
+        return jwtDecoder;
+    }
+
+    /**
+     * Maps Auth0 roles from custom claim to Spring Security authorities
+     */
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+
+        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        authoritiesConverter.setAuthoritiesClaimName(roleClaimKey);
+        authoritiesConverter.setAuthorityPrefix("ROLE_");
+
+        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+
+        return converter;
+    }
+
+    /**
+     * Custom audience validator for Auth0 tokens
+     */
+    static class AudienceValidator implements OAuth2TokenValidator<Jwt> {
+        private final List<String> audiences;
+
+        AudienceValidator(List<String> audiences) {
+            this.audiences = audiences;
+        }
+
+        @Override
+        public OAuth2TokenValidatorResult validate(Jwt jwt) {
+            List<String> tokenAudiences = jwt.getAudience();
+
+            if (tokenAudiences == null || tokenAudiences.isEmpty()) {
+                return OAuth2TokenValidatorResult.failure(
+                    new org.springframework.security.oauth2.core.OAuth2Error("invalid_token", "Token missing audience", null)
+                );
+            }
+
+            for (String audience : audiences) {
+                if (tokenAudiences.contains(audience)) {
+                    return OAuth2TokenValidatorResult.success();
+                }
+            }
+
+            return OAuth2TokenValidatorResult.failure(
+                new org.springframework.security.oauth2.core.OAuth2Error("invalid_token", "Token audience does not match", null)
+            );
+        }
+    }
+}

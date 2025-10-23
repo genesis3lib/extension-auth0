@@ -1,0 +1,13 @@
+app:
+  auth0:
+    issuer: https://${AUTH0_DOMAIN}/
+    audiences:
+      - ${AUTH0_AUDIENCE}
+    role-claim-key: {{{roleClaimKey}}}
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://${AUTH0_DOMAIN}/
