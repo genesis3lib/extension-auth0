@@ -22,7 +22,7 @@
       "key": "roleClaimKey",
       "label": "Role Claim Key",
       "type": "text",
-      "default": "https://{{domain}}/roles",
+      "default": "runtime",
       "required": true,
       "description": "Custom claim key for user roles in Auth0 token",
       "category": "configuration"
