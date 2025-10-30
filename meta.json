@@ -1,22 +1,37 @@
 {
   "version": "3.0.0",
-
   "metadata": {
     "id": "extension-auth0",
     "name": "Auth0 Authentication",
     "kind": "extension",
-    "layers": ["backend", "frontend", "ops"],
+    "layers": [
+      "backend",
+      "frontend",
+      "ops"
+    ],
     "type": "auth0",
     "description": "Add Auth0 OAuth2 authentication across all layers",
     "version": "1.0.0",
     "author": "Genesis Team",
-    "tags": ["auth", "security", "auth0", "oauth2"],
-    "compatibleWith": ["spring", "react"],
-    "dependsOn": ["extension-springsecurity", "extension-database"],
-    "springProfiles": ["auth0"],
+    "tags": [
+      "auth",
+      "security",
+      "auth0",
+      "oauth2"
+    ],
+    "compatibleWith": [
+      "spring",
+      "react"
+    ],
+    "dependsOn": [
+      "extension-springsecurity",
+      "extension-database"
+    ],
+    "springProfiles": [
+      "auth0"
+    ],
     "allowMultiple": false
   },
-
   "scaffoldConfigTemplate": [
     {
       "key": "roleClaimKey",
@@ -37,7 +52,6 @@
       "category": "features"
     }
   ],
-
   "dependencies": {
     "gradle": [],
     "npm": {
@@ -46,18 +60,6 @@
       }
     }
   },
-
-  "files": [
-    "backend/src/main/java/{{packagePath}}/config/SecurityAuth0Config.java.mustache",
-    "backend/src/main/resources/application-auth0.yaml.mustache",
-    "frontend/src/providers/Auth0Provider.tsx.mustache",
-    "frontend/src/components/ProtectedRoute.tsx.mustache",
-    "frontend/src/components/LoginButton.tsx.mustache",
-    "frontend/src/components/LogoutButton.tsx.mustache",
-    "frontend/src/hooks/useAuth.ts.mustache",
-    "ops/secrets.yaml.mustache"
-  ],
-
   "generation": {
     "layers": {
       "backend": {},
@@ -65,7 +67,6 @@
       "ops": {}
     }
   },
-
   "runtimeConfigTemplate": [
     {
       "key": "AUTH0_DOMAIN",
@@ -73,7 +74,10 @@
       "example": "your-tenant.auth0.com",
       "required": true,
       "secret": false,
-      "targets": ["backend", "frontend"]
+      "targets": [
+        "backend",
+        "frontend"
+      ]
     },
     {
       "key": "AUTH0_CLIENT_ID",
@@ -81,7 +85,10 @@
       "example": "your-client-id",
       "required": true,
       "secret": false,
-      "targets": ["backend", "frontend"]
+      "targets": [
+        "backend",
+        "frontend"
+      ]
     },
     {
       "key": "AUTH0_CLIENT_SECRET",
@@ -89,7 +96,9 @@
       "example": "your-client-secret",
       "required": true,
       "secret": true,
-      "targets": ["backend"]
+      "targets": [
+        "backend"
+      ]
     },
     {
       "key": "AUTH0_AUDIENCE",
@@ -97,7 +106,10 @@
       "example": "https://{{domain}}/api",
       "required": true,
       "secret": false,
-      "targets": ["backend", "frontend"]
+      "targets": [
+        "backend",
+        "frontend"
+      ]
     }
   ]
 }
