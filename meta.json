@@ -49,7 +49,7 @@
       "default": true,
       "required": false,
       "description": "Enable RBAC with role annotations",
-      "category": "features"
+      "category": "feature"
     }
   ],
   "dependencies": {
