@@ -6,8 +6,7 @@
     "kind": "extension",
     "layers": [
       "backend",
-      "frontend",
-      "ops"
+      "frontend"
     ],
     "type": "auth0",
     "description": "Add Auth0 OAuth2 authentication across all layers",
@@ -63,8 +62,7 @@
   "generation": {
     "layers": {
       "backend": {},
-      "frontend": {},
-      "ops": {}
+      "frontend": {}
     }
   },
   "runtimeConfigTemplate": [
