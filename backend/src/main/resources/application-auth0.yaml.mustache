@@ -1,7 +1,7 @@
 app:
   auth0:
-    issuer: ${AUTH0_ISSUER:https://example.auth0.com/}
-    audiences: ${AUTH0_AUDIENCE:https://example.auth0.com/api/v2/}
+    issuer: https://${SPRING_ENV_AUTH0_DOMAIN:example.auth0.com}/
+    audiences: ${SPRING_ENV_AUTH0_AUDIENCE:https://example.auth0.com/api/v2/}
     role-claim-key: {{{roleClaimKey}}}
 
 spring:
@@ -9,5 +9,5 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${AUTH0_ISSUER:https://example.auth0.com/}
-          jwk-set-uri: ${AUTH0_JWK_SET_URI:https://example.auth0.com/.well-known/jwks.json}
+          issuer-uri: https://${SPRING_ENV_AUTH0_DOMAIN:example.auth0.com}/
+          jwk-set-uri: https://${SPRING_ENV_AUTH0_DOMAIN:example.auth0.com}/.well-known/jwks.json

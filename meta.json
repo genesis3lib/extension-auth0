@@ -33,15 +33,6 @@
   },
   "scaffoldConfigTemplate": [
     {
-      "key": "roleClaimKey",
-      "label": "Role Claim Key",
-      "type": "text",
-      "default": "runtime",
-      "required": true,
-      "description": "Custom claim key for user roles in Auth0 token",
-      "category": "configuration"
-    },
-    {
       "key": "enableRbac",
       "label": "Enable Role-Based Access Control",
       "type": "boolean",
@@ -75,7 +66,8 @@
       "targets": [
         "backend",
         "frontend"
-      ]
+      ],
+      "commonForAllEnv": true
     },
     {
       "key": "AUTH0_CLIENT_ID",
@@ -86,7 +78,8 @@
       "targets": [
         "backend",
         "frontend"
-      ]
+      ],
+      "commonForAllEnv": false
     },
     {
       "key": "AUTH0_CLIENT_SECRET",
@@ -96,7 +89,8 @@
       "secret": true,
       "targets": [
         "backend"
-      ]
+      ],
+      "commonForAllEnv": false
     },
     {
       "key": "AUTH0_AUDIENCE",
@@ -107,7 +101,9 @@
       "targets": [
         "backend",
         "frontend"
-      ]
+      ],
+      "commonForAllEnv": false
     }
-  ]
+  ],
+  "gitignore": []
 }
