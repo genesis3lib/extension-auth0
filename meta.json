@@ -96,6 +96,7 @@
       "key": "AUTH0_AUDIENCE",
       "description": "Auth0 API audience/identifier",
       "example": "https://{{domain}}/api",
+      "default": "runtime",
       "required": true,
       "secret": false,
       "targets": [
