@@ -18,6 +18,7 @@
       "auth0",
       "oauth2"
     ],
+    "providers": ["aws"],
     "compatibleWith": [
       "spring",
       "react"
