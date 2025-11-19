@@ -41,6 +41,15 @@
       "required": false,
       "description": "Enable RBAC with role annotations",
       "category": "feature"
+    },
+    {
+      "key": "roleClaimKey",
+      "label": "Role Claim Key",
+      "type": "text",
+      "default": "runtime",
+      "required": false,
+      "description": "Custom claim key for user roles in JWT token (will be populated at runtime)",
+      "category": "authentication"
     }
   ],
   "dependencies": {
