@@ -53,7 +53,9 @@
     }
   ],
   "dependencies": {
-    "gradle": [],
+    "gradle": [
+      "implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'"
+    ],
     "npm": {
       "dependencies": {
         "@auth0/auth0-react": "^2.0.0"
