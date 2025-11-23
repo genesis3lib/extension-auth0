@@ -1,0 +1,91 @@
+"""
+Auth0 RBAC Permissions for Django REST Framework
+Project: {{projectName}}
+"""
+
+from rest_framework import permissions
+
+
+class HasAuth0Role(permissions.BasePermission):
+    """
+    Permission class that checks if the user has a specific Auth0 role.
+
+    Usage in views:
+        permission_classes = [HasAuth0Role]
+        required_roles = ['admin', 'editor']  # User must have at least one of these roles
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        required_roles = getattr(view, 'required_roles', [])
+
+        if not required_roles:
+            # No roles required, just need to be authenticated
+            return True
+
+        # Check if user has any of the required roles
+        return request.user.has_any_role(required_roles)
+
+
+class HasAuth0AllRoles(permissions.BasePermission):
+    """
+    Permission class that checks if the user has ALL specified Auth0 roles.
+
+    Usage in views:
+        permission_classes = [HasAuth0AllRoles]
+        required_roles = ['admin', 'verified']  # User must have ALL of these roles
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        required_roles = getattr(view, 'required_roles', [])
+
+        if not required_roles:
+            return True
+
+        # Check if user has all required roles
+        return all(request.user.has_role(role) for role in required_roles)
+
+
+class IsAuth0Admin(permissions.BasePermission):
+    """
+    Permission class that checks if the user is an admin.
+
+    Usage in views:
+        permission_classes = [IsAuth0Admin]
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        return request.user.has_role('admin')
+
+
+def role_required(*roles):
+    """
+    Decorator for function-based views to require specific roles.
+
+    Usage:
+        @api_view(['GET'])
+        @role_required('admin', 'editor')
+        def my_view(request):
+            ...
+    """
+    def decorator(view_func):
+        def wrapped_view(request, *args, **kwargs):
+            if not request.user or not request.user.is_authenticated:
+                from rest_framework.response import Response
+                return Response({'error': 'Authentication required'}, status=401)
+
+            if not request.user.has_any_role(roles):
+                from rest_framework.response import Response
+                return Response({'error': 'Insufficient permissions'}, status=403)
+
+            return view_func(request, *args, **kwargs)
+        return wrapped_view
+    return decorator

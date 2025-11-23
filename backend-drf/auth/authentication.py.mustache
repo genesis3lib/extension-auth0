@@ -1,0 +1,143 @@
+"""
+Auth0 JWT Authentication for Django REST Framework
+Project: {{projectName}}
+"""
+
+import json
+import jwt
+from django.conf import settings
+from rest_framework import authentication, exceptions
+from urllib.request import urlopen
+from functools import lru_cache
+
+
+class Auth0JSONWebTokenAuthentication(authentication.BaseAuthentication):
+    """
+    Auth0 JWT Authentication class for DRF.
+
+    Validates JWT tokens issued by Auth0 and extracts user information.
+    """
+
+    def authenticate(self, request):
+        """
+        Authenticate the request and return a tuple of (user, token_payload).
+        """
+        auth_header = authentication.get_authorization_header(request)
+
+        if not auth_header:
+            return None
+
+        try:
+            auth_parts = auth_header.decode('utf-8').split()
+        except UnicodeDecodeError:
+            raise exceptions.AuthenticationFailed('Invalid token header encoding')
+
+        if len(auth_parts) != 2 or auth_parts[0].lower() != 'bearer':
+            return None
+
+        token = auth_parts[1]
+
+        try:
+            payload = self._decode_token(token)
+        except jwt.ExpiredSignatureError:
+            raise exceptions.AuthenticationFailed('Token has expired')
+        except jwt.InvalidAudienceError:
+            raise exceptions.AuthenticationFailed('Invalid token audience')
+        except jwt.InvalidIssuerError:
+            raise exceptions.AuthenticationFailed('Invalid token issuer')
+        except jwt.DecodeError:
+            raise exceptions.AuthenticationFailed('Error decoding token')
+        except Exception as e:
+            raise exceptions.AuthenticationFailed(f'Authentication failed: {str(e)}')
+
+        # Create a simple user object from the token payload
+        user = Auth0User(payload)
+
+        return (user, payload)
+
+    def _decode_token(self, token):
+        """
+        Decode and validate the JWT token using Auth0's JWKS.
+        """
+        # Get Auth0 settings
+        auth0_domain = getattr(settings, 'AUTH0_DOMAIN', None)
+        auth0_audience = getattr(settings, 'AUTH0_AUDIENCE', None)
+
+        if not auth0_domain:
+            raise exceptions.AuthenticationFailed('AUTH0_DOMAIN not configured')
+        if not auth0_audience:
+            raise exceptions.AuthenticationFailed('AUTH0_AUDIENCE not configured')
+
+        # Get the signing key from Auth0's JWKS
+        jwks = self._get_jwks(auth0_domain)
+
+        # Get the key ID from the token header
+        unverified_header = jwt.get_unverified_header(token)
+
+        rsa_key = {}
+        for key in jwks.get('keys', []):
+            if key.get('kid') == unverified_header.get('kid'):
+                rsa_key = {
+                    'kty': key['kty'],
+                    'kid': key['kid'],
+                    'use': key['use'],
+                    'n': key['n'],
+                    'e': key['e']
+                }
+                break
+
+        if not rsa_key:
+            raise exceptions.AuthenticationFailed('Unable to find appropriate key')
+
+        # Decode the token
+        payload = jwt.decode(
+            token,
+            jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(rsa_key)),
+            algorithms=['RS256'],
+            audience=auth0_audience,
+            issuer=f'https://{auth0_domain}/'
+        )
+
+        return payload
+
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def _get_jwks(domain):
+        """
+        Fetch and cache the JWKS from Auth0.
+        """
+        jwks_url = f'https://{domain}/.well-known/jwks.json'
+        with urlopen(jwks_url) as response:
+            return json.loads(response.read().decode('utf-8'))
+
+
+class Auth0User:
+    """
+    Simple user class that represents an Auth0 authenticated user.
+    """
+
+    def __init__(self, payload):
+        self.payload = payload
+        self.id = payload.get('sub')
+        self.email = payload.get('email')
+        self.is_authenticated = True
+        self.is_active = True
+
+        # Extract roles from custom claim
+        role_claim_key = getattr(settings, 'AUTH0_ROLE_CLAIM_KEY', '{{roleClaimKey}}')
+        self.roles = payload.get(role_claim_key, [])
+
+    def __str__(self):
+        return self.email or self.id
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def has_role(self, role):
+        """Check if user has a specific role."""
+        return role in self.roles
+
+    def has_any_role(self, roles):
+        """Check if user has any of the specified roles."""
+        return any(role in self.roles for role in roles)
