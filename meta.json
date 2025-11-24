@@ -18,15 +18,16 @@
       "auth0",
       "oauth2"
     ],
-    "providers": ["aws"],
+    "providers": [
+      "aws"
+    ],
     "compatibleWith": [
       "spring",
       "react",
       "drf"
     ],
     "dependsOn": [
-      "extension-rbac",
-      "extension-rdbms"
+      "extension-rbac"
     ],
     "springProfiles": [
       "auth0"
