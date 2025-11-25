@@ -3,6 +3,12 @@ app:
     issuer: https://${SPRING_ENV_AUTH0_DOMAIN:example.auth0.com}/
     audiences: ${SPRING_ENV_AUTH0_AUDIENCE:https://example.auth0.com/api/v2/}
     role-claim-key: {{{roleClaimKey}}}
+    {{#tenantIdClaimKey}}
+    tenant-claim-key: {{{tenantIdClaimKey}}}
+    {{/tenantIdClaimKey}}
+  users:
+    root: ${SPRING_ENV_ROOT_USER:}
+    admins: ${SPRING_ENV_ADMIN_USERS:}
 
 spring:
   security:

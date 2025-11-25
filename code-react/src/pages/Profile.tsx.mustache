@@ -1,0 +1,178 @@
+{{=<% %>=}}import { useEffect, useState } from 'react';
+import { useApiClient } from '../utils/apiClient';
+
+interface UserProfile {
+  id: number;
+  username: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  picture: string | null;
+  externalAuthProvider: string;
+  externalAuthId: string;
+  enabled: boolean;
+  roles: string[];
+}
+
+interface ProfileResponse {
+  requestId: string;
+  response: UserProfile;
+}
+
+/**
+ * User Profile Page
+ *
+ * Displays authenticated user's profile information from the backend
+ * Calls GET /api/v1/protected/user/profile endpoint
+ *
+ * This is a test page to verify the complete Auth0 integration flow:
+ * 1. Frontend Auth0Provider handles authentication
+ * 2. JWT token sent in Authorization header
+ * 3. Backend validates JWT and syncs user to database
+ * 4. User profile returned from database with roles
+ */
+export function Profile() {
+  const api = useApiClient();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const data = await api.get<ProfileResponse>('/api/v1/protected/user/profile');
+        setProfile(data.response);
+      } catch (err) {
+        console.error('Failed to load profile:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load profile');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadProfile();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ padding: '20px' }}>
+        <h1>Profile</h1>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '20px' }}>
+        <h1>Profile</h1>
+        <div style={{ color: 'red', marginTop: '10px' }}>
+          <strong>Error:</strong> {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div style={{ padding: '20px' }}>
+        <h1>Profile</h1>
+        <p>No profile data available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
+      <h1>User Profile</h1>
+
+      <div style={{ marginTop: '20px' }}>
+        {profile.picture && (
+          <img
+            src={profile.picture}
+            alt="Profile"
+            style={{
+              width: '100px',
+              height: '100px',
+              borderRadius: '50%',
+              marginBottom: '20px',
+            }}
+          />
+        )}
+
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <tbody>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>ID</td>
+              <td style={{ padding: '10px' }}>{profile.id}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>Username</td>
+              <td style={{ padding: '10px' }}>{profile.username}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>Email</td>
+              <td style={{ padding: '10px' }}>{profile.email}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>First Name</td>
+              <td style={{ padding: '10px' }}>{profile.firstName || '-'}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>Last Name</td>
+              <td style={{ padding: '10px' }}>{profile.lastName || '-'}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>Auth Provider</td>
+              <td style={{ padding: '10px' }}>{profile.externalAuthProvider}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>External ID</td>
+              <td style={{ padding: '10px' }}>{profile.externalAuthId}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>Status</td>
+              <td style={{ padding: '10px' }}>
+                <span
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    background: profile.enabled ? '#d4edda' : '#f8d7da',
+                    color: profile.enabled ? '#155724' : '#721c24',
+                  }}
+                >
+                  {profile.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px', fontWeight: 'bold' }}>Roles</td>
+              <td style={{ padding: '10px' }}>
+                {profile.roles.map((role, index) => (
+                  <span
+                    key={index}
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 8px',
+                      marginRight: '5px',
+                      borderRadius: '4px',
+                      background: '#007bff',
+                      color: 'white',
+                      fontSize: '12px',
+                    }}
+                  >
+                    {role}
+                  </span>
+                ))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+<%={{ }}=%>

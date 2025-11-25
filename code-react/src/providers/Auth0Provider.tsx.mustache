@@ -1,5 +1,6 @@
-{{=<% %>=}}import { Auth0Provider as Auth0ProviderSDK } from '@auth0/auth0-react';
+{{=<% %>=}}import { Auth0Provider as Auth0ProviderSDK, AppState } from '@auth0/auth0-react';
 import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface Auth0ProviderProps {
   children: ReactNode;
@@ -8,6 +9,7 @@ interface Auth0ProviderProps {
 /**
  * Auth0 Authentication Provider
  * Wraps the application with Auth0 authentication context
+ * Handles post-login redirect to originally requested URL
  *
  * Configuration via environment variables:
  * - VITE_AUTH0_DOMAIN: Your Auth0 domain
@@ -15,6 +17,7 @@ interface Auth0ProviderProps {
  * - VITE_AUTH0_AUDIENCE: Your API audience/identifier
  */
 export function Auth0Provider({ children }: Auth0ProviderProps) {
+  const navigate = useNavigate();
   const domain = import.meta.env.VITE_AUTH0_DOMAIN;
   const clientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
   const audience = import.meta.env.VITE_AUTH0_AUDIENCE;
@@ -24,6 +27,11 @@ export function Auth0Provider({ children }: Auth0ProviderProps) {
     return <>{children}</>;
   }
 
+  const onRedirectCallback = (appState?: AppState) => {
+    // Redirect to originally requested URL or home page
+    navigate(appState?.returnTo || window.location.pathname);
+  };
+
   return (
     <Auth0ProviderSDK
       domain={domain}
@@ -32,6 +40,7 @@ export function Auth0Provider({ children }: Auth0ProviderProps) {
         redirect_uri: window.location.origin,
         ...(audience && { audience })
       }}
+      onRedirectCallback={onRedirectCallback}
     >
       {children}
     </Auth0ProviderSDK>

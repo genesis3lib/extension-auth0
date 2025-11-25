@@ -8,6 +8,7 @@ interface ProtectedRouteProps {
 /**
  * Protected route component
  * Redirects to login if not authenticated
+ * Preserves the originally requested URL and redirects back after login
  *
  * Usage:
  * ```tsx
@@ -21,7 +22,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      loginWithRedirect();
+      // Save the current URL (including pathname and search) to redirect back after login
+      const returnTo = window.location.pathname + window.location.search;
+      loginWithRedirect({
+        appState: { returnTo }
+      });
     }
   }, [isLoading, isAuthenticated, loginWithRedirect]);
 

@@ -1,0 +1,140 @@
+package {{{javaPackageFull}}}.security;
+
+import {{{javaPackageFull}}}.service.UserService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Auth0 User Sync Filter for {{{projectName}}}
+ *
+ * Runs after successful JWT authentication to synchronize Auth0 users with local database.
+ *
+ * Flow:
+ * 1. Checks if request is authenticated with JWT
+ * 2. Extracts user information from JWT claims (email, name, picture, sub)
+ * 3. Optionally extracts tenant ID from custom claim
+ * 4. Calls UserService to upsert user with role assignment
+ * 5. Fails fast with 500 if user sync fails
+ *
+ * @see UserService#createOrUpdateUser
+ */
+@Slf4j
+@Component
+@Profile("auth0")
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+@RequiredArgsConstructor
+public class Auth0UserSyncFilter extends OncePerRequestFilter {
+
+    private final UserService userService;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+    @Value("${app.security.public-uris}")
+    private String publicUris;
+
+    {{#tenantIdClaimKey}}
+    @Value("${app.auth0.tenant-claim-key:{{tenantIdClaimKey}}}")
+    private String tenantClaimKey;
+    {{/tenantIdClaimKey}}
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        // Only sync if authenticated with JWT
+        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof Jwt) {
+            Jwt jwt = (Jwt) auth.getPrincipal();
+
+            try {
+                syncUserToDatabase(jwt);
+            } catch (Exception e) {
+                log.error("Failed to sync Auth0 user to database. Failing request.", e);
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"User synchronization failed\",\"message\":\"" + e.getMessage() + "\"}");
+                return;
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Synchronizes Auth0 user information to local database
+     *
+     * @param jwt The validated JWT token containing user claims
+     */
+    private void syncUserToDatabase(Jwt jwt) {
+        // Extract user information from JWT claims
+        String email = jwt.getClaimAsString("email");
+        String auth0Id = jwt.getSubject(); // Format: "auth0|123456" or similar
+        String firstName = jwt.getClaimAsString("given_name");
+        String lastName = jwt.getClaimAsString("family_name");
+        String picture = jwt.getClaimAsString("picture");
+
+        if (StringUtils.isBlank(email)) {
+            throw new IllegalStateException("Email claim missing from JWT token");
+        }
+
+        // Extract tenant ID from custom claim if configured
+        {{#tenantIdClaimKey}}
+        String tenantId = StringUtils.isNotBlank(tenantClaimKey) ?
+                jwt.getClaimAsString(tenantClaimKey) : null;
+        {{/tenantIdClaimKey}}
+        {{^tenantIdClaimKey}}
+        String tenantId = null;
+        {{/tenantIdClaimKey}}
+
+        log.debug("Syncing Auth0 user to database: email={}, auth0Id={}, tenantId={}", email, auth0Id, tenantId);
+
+        // Upsert user to database
+        // UserService already handles role assignment based on app.users.root and app.users.admins
+        userService.createOrUpdateUser(
+                tenantId,
+                email,           // username same as email
+                "auth0",         // external auth provider
+                auth0Id,         // external auth ID
+                firstName,
+                lastName,
+                picture
+        );
+
+        log.debug("Successfully synced user: {}", email);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        // Skip filter for public URIs defined in app.security.public-uris
+        String requestPath = request.getRequestURI();
+
+        if (publicUris == null || publicUris.isEmpty()) {
+            return false;
+        }
+
+        List<String> publicUriPatterns = Arrays.asList(publicUris.split(","));
+
+        return publicUriPatterns.stream()
+                .map(String::trim)
+                .anyMatch(pattern -> pathMatcher.match(pattern, requestPath));
+    }
+}

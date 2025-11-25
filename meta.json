@@ -52,6 +52,15 @@
       "required": false,
       "description": "Custom claim key for user roles in JWT token (will be populated at runtime)",
       "category": "authentication"
+    },
+    {
+      "key": "tenantIdClaimKey",
+      "label": "Tenant ID JWT Claim Key",
+      "type": "text",
+      "default": "",
+      "required": false,
+      "description": "JWT claim key to extract tenant ID from (leave empty for single-tenant apps)",
+      "category": "authentication"
     }
   ],
   "dependencies": {
