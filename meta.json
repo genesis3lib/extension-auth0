@@ -79,7 +79,8 @@
     ],
     "npm": {
       "dependencies": {
-        "@auth0/auth0-react": "^2.0.0"
+        "@auth0/auth0-react": "^2.0.0",
+        "react-router-dom": "^7.1.3"
       }
     },
     "pip": [
