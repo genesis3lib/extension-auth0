@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApiClient } from '../utils/apiClient';
 import { useAuth } from '../hooks/useAuth';
 import { AppPageLayout } from '../components/AppPageLayout';
+import { ThemeSelector } from '../components/ThemeSelector';
 
 interface UserProfile {
   id: number;
@@ -173,6 +174,10 @@ export function Profile() {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div className="border border-border rounded-lg p-6">
+          <ThemeSelector />
         </div>
       </div>
     </AppPageLayout>
