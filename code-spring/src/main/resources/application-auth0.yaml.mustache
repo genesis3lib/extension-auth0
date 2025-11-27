@@ -1,4 +1,6 @@
 app:
+  auth:
+    provider: auth0
   auth0:
     issuer: https://${SPRING_ENV_AUTH0_DOMAIN:example.auth0.com}/
     audiences: ${SPRING_ENV_AUTH0_AUDIENCE:https://example.auth0.com/api/v2/}

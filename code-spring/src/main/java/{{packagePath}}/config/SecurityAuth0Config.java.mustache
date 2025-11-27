@@ -5,8 +5,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -15,6 +15,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import java.util.List;
 
@@ -25,6 +26,8 @@ import java.util.List;
  * - JWT decoder for Auth0 tokens
  * - Role claim mapping to Spring Security authorities
  * - Audience validation
+ * - CORS configuration
+ * - Configurable public endpoints
  */
 @Configuration
 @Profile("auth0")
@@ -38,6 +41,9 @@ public class SecurityAuth0Config {
 
     @Value("${app.auth0.role-claim-key}")
     private String roleClaimKey;
+
+    @Value("${app.security.public-uris}")
+    private String publicUris;
 
     /**
      * Configures JWT decoder for Auth0 tokens
@@ -74,23 +80,32 @@ public class SecurityAuth0Config {
 
     /**
      * Configure Security Filter Chain
-     * - /public/** endpoints are accessible without authentication
-     * - /protected/** endpoints require valid JWT token
+     * - Public endpoints configured via app.security.public-uris
+     * - All other endpoints require valid JWT token
      * - Registers Auth0UserSyncFilter to upsert users after JWT validation
+     * - Uses shared CORS configuration
      */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, Auth0UserSyncFilter auth0UserSyncFilter) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, Auth0UserSyncFilter auth0UserSyncFilter, CorsConfigurationSource corsConfigurationSource) throws Exception {
+        // Parse public URIs from config
+        String[] publicUriPatterns = publicUris.split(",");
+
         http
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/public/**", "/actuator/health").permitAll()
-                .requestMatchers("/api/v1/protected/**").authenticated()
-                .anyRequest().authenticated()
-            )
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> {
+                // Allow public endpoints
+                for (String pattern : publicUriPatterns) {
+                    auth.requestMatchers(pattern.trim()).permitAll();
+                }
+                // All other requests require authentication
+                auth.anyRequest().authenticated();
+            })
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
             )
-            .addFilterAfter(auth0UserSyncFilter, BearerTokenAuthenticationFilter.class)
-            .csrf(csrf -> csrf.disable()); // Disable CSRF for stateless API
+            .addFilterAfter(auth0UserSyncFilter, BearerTokenAuthenticationFilter.class);
 
         return http.build();
     }
