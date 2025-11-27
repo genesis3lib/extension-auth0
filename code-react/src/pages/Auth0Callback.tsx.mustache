@@ -1,0 +1,39 @@
+import { useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+
+/**
+ * Auth0 Callback Page
+ * This page is shown while Auth0 processes the authentication callback
+ */
+export function Auth0Callback() {
+  const { error } = useAuth0();
+
+  useEffect(() => {
+    if (error) {
+      console.error('Auth0 callback error:', error);
+    }
+  }, [error]);
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-destructive">Authentication Error</h1>
+          <p className="mt-2 text-muted-foreground">{error.message}</p>
+          <a href="/" className="mt-4 inline-block text-primary hover:underline">
+            Return to Home
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Completing authentication...</h1>
+        <p className="mt-2 text-muted-foreground">Please wait while we log you in.</p>
+      </div>
+    </div>
+  );
+}

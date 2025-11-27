@@ -1,0 +1,39 @@
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+/**
+ * Auth0 Logout Page
+ * This page is shown after successful logout
+ * Redirects to home page after 5 seconds
+ */
+export function Auth0Logout() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      navigate('/');
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [navigate]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Successfully Logged Out</h1>
+        <p className="mt-2 text-muted-foreground">
+          You have been logged out successfully.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Redirecting to home page in 5 seconds...
+        </p>
+        <a
+          href="/"
+          className="mt-4 inline-block text-primary hover:underline"
+        >
+          Return to Home Now
+        </a>
+      </div>
+    </div>
+  );
+}

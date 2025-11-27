@@ -1,0 +1,33 @@
+import { Routes, Route } from 'react-router-dom';
+import { Layout } from './components/Layout';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { Home } from './pages/Home';
+import { About } from './pages/About';
+import { Terms } from './pages/Terms';
+import { Profile } from './pages/Profile';
+import { Auth0Callback } from './pages/Auth0Callback';
+import { Auth0Logout } from './pages/Auth0Logout';
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/auth0/callback" element={<Auth0Callback />} />
+      <Route path="/auth0/logout" element={<Auth0Logout />} />
+      <Route element={<Layout />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
+    </Routes>
+  );
+}
+
+export default App;

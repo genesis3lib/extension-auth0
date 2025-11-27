@@ -1,5 +1,7 @@
-{{=<% %>=}}import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApiClient } from '../utils/apiClient';
+import { useAuth } from '../hooks/useAuth';
+import { AppPageLayout } from '../components/AppPageLayout';
 
 interface UserProfile {
   id: number;
@@ -33,9 +35,18 @@ interface ProfileResponse {
  */
 export function Profile() {
   const api = useApiClient();
+  const { logout } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleLogout = () => {
+    logout({
+      logoutParams: {
+        returnTo: `${window.location.origin}/auth0/logout`
+      }
+    });
+  };
 
   useEffect(() => {
     async function loadProfile() {
@@ -58,121 +69,112 @@ export function Profile() {
 
   if (loading) {
     return (
-      <div style={{ padding: '20px' }}>
-        <h1>Profile</h1>
-        <p>Loading...</p>
-      </div>
+      <AppPageLayout>
+        <h1 className="text-2xl font-bold">Profile</h1>
+        <p className="mt-4">Loading...</p>
+      </AppPageLayout>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: '20px' }}>
-        <h1>Profile</h1>
-        <div style={{ color: 'red', marginTop: '10px' }}>
+      <AppPageLayout>
+        <h1 className="text-2xl font-bold">Profile</h1>
+        <div className="mt-4 text-destructive">
           <strong>Error:</strong> {error}
         </div>
-      </div>
+      </AppPageLayout>
     );
   }
 
   if (!profile) {
     return (
-      <div style={{ padding: '20px' }}>
-        <h1>Profile</h1>
-        <p>No profile data available</p>
-      </div>
+      <AppPageLayout>
+        <h1 className="text-2xl font-bold">Profile</h1>
+        <p className="mt-4">No profile data available</p>
+      </AppPageLayout>
     );
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>User Profile</h1>
+    <AppPageLayout>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">User Profile</h1>
+        <button
+          onClick={handleLogout}
+          className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
+        >
+          Logout
+        </button>
+      </div>
 
-      <div style={{ marginTop: '20px' }}>
+      <div className="space-y-6">
         {profile.picture && (
           <img
             src={profile.picture}
             alt="Profile"
-            style={{
-              width: '100px',
-              height: '100px',
-              borderRadius: '50%',
-              marginBottom: '20px',
-            }}
+            className="w-24 h-24 rounded-full"
           />
         )}
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <tbody>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>ID</td>
-              <td style={{ padding: '10px' }}>{profile.id}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>Username</td>
-              <td style={{ padding: '10px' }}>{profile.username}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>Email</td>
-              <td style={{ padding: '10px' }}>{profile.email}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>First Name</td>
-              <td style={{ padding: '10px' }}>{profile.firstName || '-'}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>Last Name</td>
-              <td style={{ padding: '10px' }}>{profile.lastName || '-'}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>Auth Provider</td>
-              <td style={{ padding: '10px' }}>{profile.externalAuthProvider}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>External ID</td>
-              <td style={{ padding: '10px' }}>{profile.externalAuthId}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>Status</td>
-              <td style={{ padding: '10px' }}>
-                <span
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    background: profile.enabled ? '#d4edda' : '#f8d7da',
-                    color: profile.enabled ? '#155724' : '#721c24',
-                  }}
-                >
-                  {profile.enabled ? 'Enabled' : 'Disabled'}
-                </span>
-              </td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={{ padding: '10px', fontWeight: 'bold' }}>Roles</td>
-              <td style={{ padding: '10px' }}>
-                {profile.roles.map((role, index) => (
-                  <span
-                    key={index}
-                    style={{
-                      display: 'inline-block',
-                      padding: '4px 8px',
-                      marginRight: '5px',
-                      borderRadius: '4px',
-                      background: '#007bff',
-                      color: 'white',
-                      fontSize: '12px',
-                    }}
-                  >
-                    {role}
+        <div className="border border-border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <tbody className="divide-y divide-border">
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">ID</td>
+                <td className="px-4 py-3 text-sm">{profile.id}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">Username</td>
+                <td className="px-4 py-3 text-sm">{profile.username}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">Email</td>
+                <td className="px-4 py-3 text-sm">{profile.email}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">First Name</td>
+                <td className="px-4 py-3 text-sm">{profile.firstName || '-'}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">Last Name</td>
+                <td className="px-4 py-3 text-sm">{profile.lastName || '-'}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">Auth Provider</td>
+                <td className="px-4 py-3 text-sm">{profile.externalAuthProvider}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">External ID</td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">{profile.externalAuthId}</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">Status</td>
+                <td className="px-4 py-3 text-sm">
+                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${profile.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {profile.enabled ? 'Enabled' : 'Disabled'}
                   </span>
-                ))}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 font-semibold text-sm bg-muted/50">Roles</td>
+                <td className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap gap-2">
+                    {profile.roles.map((role, index) => (
+                      <span
+                        key={index}
+                        className="inline-block px-2 py-1 rounded bg-primary text-primary-foreground text-xs font-medium"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </AppPageLayout>
   );
 }
-<%={{ }}=%>
