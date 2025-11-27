@@ -10,28 +10,33 @@ Before configuring this extension, you need to:
 
 ## How to Create an Auth0 Application
 
-1. **Sign up for Auth0**: Go to https://auth0.com and click "Sign Up". Choose a tenant name (e.g., "mycompany").
+### 1. Create Application
+- Go to https://manage.auth0.com/dashboard
+- Click **Create Application**
+- **Name**: Your application name (e.g., Grablin)
+- **Application type**: Single Page Web Applications
+- Click **Create**
 
-2. **Create a New Application**:
-   - After logging in, go to Applications ’ Applications in the left sidebar
-   - Click "+ Create Application"
-   - Enter your application name (e.g., "My App")
-   - Select "Single Page Web Applications" as the application type
-   - Click "Create"
+### 2. Configure Application Settings
+- Navigate to **Settings** tab
+- Note down:
+  - **Domain**: e.g., `dev-exjsxdx8c6qt3uhf.us.auth0.com`
+  - **Client ID**: e.g., `7sn1sBCSTYRKPJDNERio1beSBc0CTrGR`
+  - **Client Secret**: e.g., `*****zRR**Fi-****`
+- Update **Application URIs** and **Cross-Origin Authentication** settings:
+  - Add callback URLs (local dev: `http://localhost:5173`)
+  - Add logout URLs (local dev: `http://localhost:5173`)
+- Click **Save Changes**
 
-3. **Configure Application Settings**:
-   - Go to the "Settings" tab of your newly created application
-   - Scroll down to "Application URIs" section
-   - Add your callback URLs (for local development: `http://localhost:5173`)
-   - Add logout URLs (for local development: `http://localhost:5173`)
-   - Scroll down and click "Save Changes"
-
-4. **Create an API** (for backend authentication):
-   - Go to Applications ’ APIs in the left sidebar
-   - Click "+ Create API"
-   - Enter API name (e.g., "My App API")
-   - Enter identifier/audience (e.g., `https://api.myapp.com` - this is just an identifier, not a real URL)
-   - Click "Create"
+### 3. Create API (for backend authentication)
+- Click **Applications** â†’ **APIs** in left navigation
+- Click **Create**
+- **Name**: Your API name (e.g., grablin-api)
+- **Identifier**: Your API URL (e.g., `https://gen3-api.grabl.in/api/v2/`)
+  - This is just an identifier, not a real URL
+- **JWT Profile**: Auth0 (default)
+- **JWT Signing Algorithm**: RS256 (default)
+- Click **Create**
 
 ---
 
@@ -60,7 +65,7 @@ These settings are configured once during project generation.
 **Default value**: Will be set at runtime based on your Auth0 configuration.
 
 **How to find it**:
-1. In Auth0 Dashboard, go to Actions ’ Flows
+1. In Auth0 Dashboard, go to Actions ï¿½ Flows
 2. Click on "Login" flow
 3. If you have custom Actions that add roles to tokens, note the claim key used
 4. Common values: `https://myapp.com/roles` or `roles`
@@ -91,7 +96,7 @@ These are the credentials from your Auth0 application. You'll need to get these 
 
 **How to find it**:
 1. Log into Auth0 Dashboard
-2. Go to Applications ’ Applications
+2. Go to Applications ï¿½ Applications
 3. Click on your application
 4. Look for "Domain" in the Basic Information section
 5. Copy the domain (e.g., `mycompany.auth0.com`)
@@ -107,7 +112,7 @@ These are the credentials from your Auth0 application. You'll need to get these 
 
 **How to find it**:
 1. Log into Auth0 Dashboard
-2. Go to Applications ’ Applications
+2. Go to Applications ï¿½ Applications
 3. Click on your application
 4. Look for "Client ID" in the Basic Information section
 5. Copy the Client ID
@@ -123,7 +128,7 @@ These are the credentials from your Auth0 application. You'll need to get these 
 
 **How to find it**:
 1. Log into Auth0 Dashboard
-2. Go to Applications ’ Applications
+2. Go to Applications ï¿½ Applications
 3. Click on your application
 4. Look for "Client Secret" in the Basic Information section
 5. Copy the Client Secret (you may need to click "Show" to reveal it)
@@ -143,7 +148,7 @@ These are the credentials from your Auth0 application. You'll need to get these 
 
 **How to find it**:
 1. Log into Auth0 Dashboard
-2. Go to Applications ’ APIs
+2. Go to Applications ï¿½ APIs
 3. Click on your API (create one if you haven't - see "Create an API" section above)
 4. Look for "Identifier" field
 5. Copy the Identifier value
@@ -162,7 +167,7 @@ These are the credentials from your Auth0 application. You'll need to get these 
 **Problem**: Auth0 rejects the login redirect.
 
 **Solution**: Make sure you've added your application URLs to the Auth0 Application settings:
-- Go to Applications ’ Applications ’ Your App ’ Settings
+- Go to Applications ï¿½ Applications ï¿½ Your App ï¿½ Settings
 - Add URLs to "Allowed Callback URLs" (e.g., `http://localhost:5173`, `https://myapp.com`)
 - Add URLs to "Allowed Logout URLs"
 - Click "Save Changes"
@@ -172,7 +177,7 @@ These are the credentials from your Auth0 application. You'll need to get these 
 
 **Solution**:
 - Verify the `AUTH0_AUDIENCE` matches your API Identifier exactly
-- Make sure you've created an API in Auth0 Dashboard (Applications ’ APIs)
+- Make sure you've created an API in Auth0 Dashboard (Applications ï¿½ APIs)
 
 ### "Unauthorized"
 **Problem**: Backend rejects authenticated requests.
