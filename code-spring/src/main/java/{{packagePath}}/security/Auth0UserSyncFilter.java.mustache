@@ -40,7 +40,6 @@ import java.util.List;
 @Slf4j
 @Component
 @Profile("auth0")
-@Order(Ordered.HIGHEST_PRECEDENCE + 10)
 @RequiredArgsConstructor
 public class Auth0UserSyncFilter extends OncePerRequestFilter {
 
