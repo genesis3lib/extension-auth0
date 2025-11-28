@@ -80,7 +80,15 @@ export function Profile() {
   if (error) {
     return (
       <AppPageLayout>
-        <h1 className="text-2xl font-bold">Profile</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Profile</h1>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
+          >
+            Logout
+          </button>
+        </div>
         <div className="mt-4 text-destructive">
           <strong>Error:</strong> {error}
         </div>
