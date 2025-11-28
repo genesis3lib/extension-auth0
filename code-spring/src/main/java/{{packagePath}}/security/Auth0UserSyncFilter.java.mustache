@@ -1,22 +1,26 @@
 package {{{javaPackageFull}}}.security;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import {{{javaPackageFull}}}.service.UserService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -31,28 +35,39 @@ import java.util.List;
  * Flow:
  * 1. Checks if request is authenticated with JWT
  * 2. Extracts user information from JWT claims (email, name, picture, sub)
- * 3. Optionally extracts tenant ID from custom claim
- * 4. Calls UserService to upsert user with role assignment
- * 5. Fails fast with 500 if user sync fails
+ * 3. If email is missing from JWT, falls back to Auth0 userinfo endpoint
+ * 4. Optionally extracts tenant ID from custom claim
+ * 5. Calls UserService to upsert user with role assignment
+ * 6. Fails fast with 500 if user sync fails
  *
  * @see UserService#createOrUpdateUser
  */
 @Slf4j
 @Component
 @Profile("auth0")
-@RequiredArgsConstructor
 public class Auth0UserSyncFilter extends OncePerRequestFilter {
 
     private final UserService userService;
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     @Value("${app.security.public-uris}")
     private String publicUris;
 
+    @Value("${app.auth0.issuer}")
+    private String auth0Issuer;
+
     {{#tenantIdClaimKey}}
     @Value("${app.auth0.tenant-claim-key:{{tenantIdClaimKey}}}")
     private String tenantClaimKey;
     {{/tenantIdClaimKey}}
+
+    public Auth0UserSyncFilter(UserService userService) {
+        this.userService = userService;
+        this.restTemplate = new RestTemplate();
+        this.objectMapper = new ObjectMapper();
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -91,8 +106,25 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
         String lastName = jwt.getClaimAsString("family_name");
         String picture = jwt.getClaimAsString("picture");
 
+        // Fallback to Auth0 userinfo endpoint if email is missing from JWT
         if (StringUtils.isBlank(email)) {
-            throw new IllegalStateException("Email claim missing from JWT token");
+            log.warn("Email claim missing from JWT token, falling back to Auth0 userinfo endpoint");
+            Auth0UserInfo userInfo = fetchUserInfoFromAuth0(jwt.getTokenValue());
+            email = userInfo.email;
+            if (StringUtils.isBlank(firstName)) {
+                firstName = userInfo.givenName;
+            }
+            if (StringUtils.isBlank(lastName)) {
+                lastName = userInfo.familyName;
+            }
+            if (StringUtils.isBlank(picture)) {
+                picture = userInfo.picture;
+            }
+        }
+
+        if (StringUtils.isBlank(email)) {
+            log.error("Email not available from JWT claims or Auth0 userinfo endpoint");
+            throw new IllegalStateException("Email not available from JWT claims or Auth0 userinfo endpoint");
         }
 
         // Extract tenant ID from custom claim if configured
@@ -104,7 +136,7 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
         String tenantId = null;
         {{/tenantIdClaimKey}}
 
-        log.debug("Syncing Auth0 user to database: email={}, auth0Id={}, tenantId={}", email, auth0Id, tenantId);
+        log.info("Syncing Auth0 user to database: email={}, auth0Id={}, tenantId={}", email, auth0Id, tenantId);
 
         // Upsert user to database
         // UserService already handles role assignment based on app.users.root and app.users.admins
@@ -118,7 +150,70 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
                 picture
         );
 
-        log.debug("Successfully synced user: {}", email);
+        log.info("Successfully synced user: {}", email);
+    }
+
+    /**
+     * Fetches user info from Auth0 userinfo endpoint using the access token.
+     * This is used as a fallback when email claim is not present in the JWT.
+     *
+     * @param accessToken The user's access token
+     * @return Auth0UserInfo containing email and profile information
+     */
+    private Auth0UserInfo fetchUserInfoFromAuth0(String accessToken) {
+        // Build userinfo URL from issuer (e.g., https://tenant.auth0.com/ -> https://tenant.auth0.com/userinfo)
+        String userinfoUrl = auth0Issuer.endsWith("/")
+                ? auth0Issuer + "userinfo"
+                : auth0Issuer + "/userinfo";
+
+        log.debug("Fetching user info from Auth0: {}", userinfoUrl);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    userinfoUrl,
+                    HttpMethod.GET,
+                    requestEntity,
+                    String.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode json = objectMapper.readTree(response.getBody());
+                Auth0UserInfo userInfo = new Auth0UserInfo();
+                userInfo.email = getJsonString(json, "email");
+                userInfo.givenName = getJsonString(json, "given_name");
+                userInfo.familyName = getJsonString(json, "family_name");
+                userInfo.picture = getJsonString(json, "picture");
+                userInfo.name = getJsonString(json, "name");
+
+                log.debug("Successfully fetched user info from Auth0: email={}", userInfo.email);
+                return userInfo;
+            } else {
+                throw new RuntimeException("Auth0 userinfo endpoint returned non-success status: " + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch user info from Auth0 userinfo endpoint", e);
+            throw new RuntimeException("Failed to fetch user info from Auth0: " + e.getMessage(), e);
+        }
+    }
+
+    private String getJsonString(JsonNode json, String field) {
+        JsonNode node = json.get(field);
+        return (node != null && !node.isNull()) ? node.asText() : null;
+    }
+
+    /**
+     * Simple DTO to hold user info from Auth0 userinfo endpoint
+     */
+    private static class Auth0UserInfo {
+        String email;
+        String givenName;
+        String familyName;
+        String picture;
+        String name;
     }
 
     @Override
