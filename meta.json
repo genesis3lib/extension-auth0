@@ -46,6 +46,15 @@
   },
   "scaffoldConfigTemplate": [
     {
+      "key": "auth0Domain",
+      "label": "Auth0 Domain",
+      "type": "text",
+      "required": true,
+      "description": "Your Auth0 domain (e.g., your-tenant.auth0.com)",
+      "example": "your-tenant.auth0.com",
+      "category": "authentication"
+    },
+    {
       "key": "enableRbac",
       "label": "Enable Role-Based Access Control",
       "type": "boolean",
@@ -94,18 +103,6 @@
     }
   },
   "runtimeConfigTemplate": [
-    {
-      "key": "AUTH0_DOMAIN",
-      "description": "Auth0 domain (e.g., your-tenant.auth0.com)",
-      "example": "your-tenant.auth0.com",
-      "required": true,
-      "secret": false,
-      "targets": [
-        "backend",
-        "frontend"
-      ],
-      "commonForAllEnv": true
-    },
     {
       "key": "AUTH0_CLIENT_ID",
       "description": "Auth0 application client ID",
