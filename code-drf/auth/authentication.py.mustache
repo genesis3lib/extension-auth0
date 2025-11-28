@@ -51,7 +51,7 @@ class Auth0JSONWebTokenAuthentication(authentication.BaseAuthentication):
             raise exceptions.AuthenticationFailed(f'Authentication failed: {str(e)}')
 
         # Create a simple user object from the token payload
-        user = Auth0User(payload)
+        user = Auth0User(payload, token)
 
         return (user, payload)
 
@@ -116,8 +116,9 @@ class Auth0User:
     Simple user class that represents an Auth0 authenticated user.
     """
 
-    def __init__(self, payload):
+    def __init__(self, payload, token=None):
         self.payload = payload
+        self.token = token  # Store token for userinfo fallback
         self.id = payload.get('sub')
         self.email = payload.get('email')
         self.is_authenticated = True

@@ -3,11 +3,14 @@ Auth0 User Sync Middleware for Django
 
 Syncs Auth0 authenticated users to local database after JWT validation.
 Implements the same logic as Spring Boot's Auth0UserSyncFilter.
+
+If email is missing from JWT, falls back to Auth0 userinfo endpoint.
 """
 
 import os
 import logging
 import fnmatch
+import requests
 from django.conf import settings
 from django.http import JsonResponse
 from app_rbac.models import User, UserRole
@@ -91,6 +94,7 @@ class Auth0UserSyncMiddleware:
             auth0_user: Auth0User object from authentication.py with payload
         """
         payload = auth0_user.payload
+        access_token = getattr(auth0_user, 'token', None)
 
         # Extract user information from JWT
         email = payload.get('email')
@@ -99,8 +103,20 @@ class Auth0UserSyncMiddleware:
         last_name = payload.get('family_name')
         picture = payload.get('picture')
 
+        # Fallback to Auth0 userinfo endpoint if email is missing from JWT
+        if not email and access_token:
+            logger.warning('Email claim missing from JWT token, falling back to Auth0 userinfo endpoint')
+            userinfo = self._fetch_userinfo_from_auth0(access_token)
+            email = userinfo.get('email')
+            if not first_name:
+                first_name = userinfo.get('given_name')
+            if not last_name:
+                last_name = userinfo.get('family_name')
+            if not picture:
+                picture = userinfo.get('picture')
+
         if not email:
-            raise ValueError('Email claim missing from JWT token')
+            raise ValueError('Email not available from JWT claims or Auth0 userinfo endpoint')
 
         # Extract tenant ID from custom claim if configured
         {{#tenantIdClaimKey}}
@@ -140,4 +156,36 @@ class Auth0UserSyncMiddleware:
         )
 
         action = 'Created' if created else 'Updated'
-        logger.debug(f'{action} user: {email} with roles: {roles}')
+        logger.info(f'{action} user: {email} with roles: {roles}')
+
+    def _fetch_userinfo_from_auth0(self, access_token):
+        """
+        Fetches user info from Auth0 userinfo endpoint using the access token.
+        This is used as a fallback when email claim is not present in the JWT.
+
+        Args:
+            access_token: The user's access token
+
+        Returns:
+            dict: User info containing email, given_name, family_name, picture
+        """
+        auth0_domain = getattr(settings, 'AUTH0_DOMAIN', '')
+        if not auth0_domain:
+            raise ValueError('AUTH0_DOMAIN not configured in settings')
+
+        userinfo_url = f'https://{auth0_domain}/userinfo'
+        logger.debug(f'Fetching user info from Auth0: {userinfo_url}')
+
+        try:
+            response = requests.get(
+                userinfo_url,
+                headers={'Authorization': f'Bearer {access_token}'},
+                timeout=10
+            )
+            response.raise_for_status()
+            userinfo = response.json()
+            logger.debug(f'Successfully fetched user info from Auth0: email={userinfo.get("email")}')
+            return userinfo
+        except requests.RequestException as e:
+            logger.error(f'Failed to fetch user info from Auth0 userinfo endpoint: {str(e)}')
+            raise RuntimeError(f'Failed to fetch user info from Auth0: {str(e)}')

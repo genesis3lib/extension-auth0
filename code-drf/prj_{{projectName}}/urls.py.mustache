@@ -1,0 +1,11 @@
+"""
+URL configuration for {{{projectName}}} project.
+Includes Auth0 auth and RBAC endpoints.
+"""
+
+from django.urls import path, include
+
+urlpatterns = [
+    path('api/v1/', include('app_basic.urls')),
+    path('api/v1/', include('app_rbac.urls')),
+]
