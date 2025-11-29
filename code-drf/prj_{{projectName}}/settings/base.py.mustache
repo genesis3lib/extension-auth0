@@ -61,12 +61,20 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Auth0 Configuration
-AUTH0_DOMAIN = os.environ.get('AUTH0_DOMAIN', '{{{auth0Domain}}}')
-AUTH0_AUDIENCE = os.environ.get('AUTH0_AUDIENCE', 'https://{{projectName}}-api.{{domain}}/api/v1/')
+# Non-confidential values baked in at generation time (same as Spring)
+AUTH0_DOMAIN = '{{{auth0Domain}}}'
+AUTH0_ISSUER = 'https://{{{auth0Domain}}}/'
+AUTH0_JWKS_URI = 'https://{{{auth0Domain}}}/.well-known/jwks.json'
 AUTH0_ROLE_CLAIM_KEY = '{{{roleClaimKey}}}'
 {{#tenantIdClaimKey}}
 AUTH0_TENANT_CLAIM_KEY = '{{{tenantIdClaimKey}}}'
 {{/tenantIdClaimKey}}
+{{^tenantIdClaimKey}}
+AUTH0_TENANT_CLAIM_KEY = ''
+{{/tenantIdClaimKey}}
+
+# Audience varies per environment - read from env var with fallback
+AUTH0_AUDIENCE = os.environ.get('PYTHON_DRF_AUTH0_AUDIENCE', 'https://{{projectName}}-api.{{domain}}/api/v1/')
 
 # REST Framework with Auth0 Authentication
 REST_FRAMEWORK = {
