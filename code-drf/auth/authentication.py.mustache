@@ -1,14 +1,28 @@
 """
 Auth0 JWT Authentication for Django REST Framework
 Project: {{projectName}}
+
+Includes user sync to database after JWT validation (if RBAC extension is enabled).
 """
 
+import os
 import json
+import logging
 import jwt
+import requests
 from django.conf import settings
 from rest_framework import authentication, exceptions
 from urllib.request import urlopen
 from functools import lru_cache
+
+# Try to import User model from RBAC extension (optional)
+try:
+    from app_rbac.models import User, UserRole
+    HAS_RBAC = True
+except ImportError:
+    HAS_RBAC = False
+
+logger = logging.getLogger(__name__)
 
 
 class Auth0JSONWebTokenAuthentication(authentication.BaseAuthentication):
@@ -16,6 +30,7 @@ class Auth0JSONWebTokenAuthentication(authentication.BaseAuthentication):
     Auth0 JWT Authentication class for DRF.
 
     Validates JWT tokens issued by Auth0 and extracts user information.
+    If RBAC extension is enabled, syncs user to database after authentication.
     """
 
     def authenticate(self, request):
@@ -53,7 +68,109 @@ class Auth0JSONWebTokenAuthentication(authentication.BaseAuthentication):
         # Create a simple user object from the token payload
         user = Auth0User(payload, token)
 
+        # Sync user to database after successful authentication (if RBAC enabled)
+        if HAS_RBAC:
+            try:
+                self._sync_user_to_database(user)
+            except Exception as e:
+                logger.error(f'Failed to sync Auth0 user to database: {str(e)}', exc_info=True)
+                raise exceptions.AuthenticationFailed(f'User synchronization failed: {str(e)}')
+
         return (user, payload)
+
+    def _sync_user_to_database(self, auth0_user):
+        """
+        Synchronize Auth0 user to local database with role assignment.
+        Only called if RBAC extension is enabled.
+        """
+        payload = auth0_user.payload
+        access_token = auth0_user.token
+
+        # Extract user information from JWT
+        email = payload.get('email')
+        auth0_id = payload.get('sub')
+        first_name = payload.get('given_name')
+        last_name = payload.get('family_name')
+        picture = payload.get('picture')
+
+        # Fallback to Auth0 userinfo endpoint if email is missing from JWT
+        if not email and access_token:
+            logger.warning('Email claim missing from JWT token, falling back to Auth0 userinfo endpoint')
+            userinfo = self._fetch_userinfo_from_auth0(access_token)
+            email = userinfo.get('email')
+            if not first_name:
+                first_name = userinfo.get('given_name')
+            if not last_name:
+                last_name = userinfo.get('family_name')
+            if not picture:
+                picture = userinfo.get('picture')
+
+        if not email:
+            raise ValueError('Email not available from JWT claims or Auth0 userinfo endpoint')
+
+        # Extract tenant ID from custom claim if configured
+        tenant_claim_key = getattr(settings, 'AUTH0_TENANT_CLAIM_KEY', None)
+        tenant_id = payload.get(tenant_claim_key) if tenant_claim_key else None
+
+        logger.debug(f'Syncing Auth0 user to database: email={email}, auth0_id={auth0_id}')
+
+        # Determine roles based on email
+        root_user = os.environ.get('APP_USERS_ROOT', '').strip()
+        admins_str = os.environ.get('APP_USERS_ADMINS', '').strip()
+        admin_users = [e.strip() for e in admins_str.split(',') if e.strip()]
+
+        roles = [UserRole.USER]
+        if root_user and root_user.lower() == email.lower():
+            logger.info(f'Assigning root role to user: {email}')
+            roles = [UserRole.ROOT, UserRole.ADMIN, UserRole.USER]
+        elif any(admin.lower() == email.lower() for admin in admin_users):
+            logger.info(f'Assigning admin role to user: {email}')
+            roles = [UserRole.ADMIN, UserRole.USER]
+
+        # Upsert user to database
+        user, created = User.objects.update_or_create(
+            external_auth_provider='auth0',
+            external_auth_id=auth0_id,
+            defaults={
+                'tenant_id': tenant_id,
+                'username': email,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'picture': picture,
+                'enabled': True,
+                'roles': roles,
+                'deleted': False,
+            }
+        )
+
+        action = 'Created' if created else 'Updated'
+        logger.info(f'{action} user: {email} with roles: {roles}')
+
+    def _fetch_userinfo_from_auth0(self, access_token):
+        """
+        Fetches user info from Auth0 userinfo endpoint using the access token.
+        """
+        auth0_domain = getattr(settings, 'AUTH0_DOMAIN', '')
+        if not auth0_domain:
+            raise ValueError('AUTH0_DOMAIN not configured in settings')
+
+        userinfo_url = f'https://{auth0_domain}/userinfo'
+        logger.debug(f'Fetching user info from Auth0: {userinfo_url}')
+
+        try:
+            response = requests.get(
+                userinfo_url,
+                headers={'Authorization': f'Bearer {access_token}'},
+                timeout=10
+            )
+            response.raise_for_status()
+            userinfo = response.json()
+            logger.debug(f'Successfully fetched user info from Auth0: email={userinfo.get("email")}')
+            return userinfo
+        except requests.RequestException as e:
+            logger.error(f'Failed to fetch user info from Auth0 userinfo endpoint: {str(e)}')
+            raise RuntimeError(f'Failed to fetch user info from Auth0: {str(e)}')
 
     def _decode_token(self, token):
         """

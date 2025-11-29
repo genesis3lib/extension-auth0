@@ -26,7 +26,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'auth.middleware.Auth0UserSyncMiddleware',
+    # Note: User sync is done in Auth0JSONWebTokenAuthentication class (not middleware)
 ]
 
 ROOT_URLCONF = 'prj_{{{projectName}}}.urls'
