@@ -3,7 +3,7 @@ app:
     provider: auth0
   auth0:
     issuer: https://{{{auth0Domain}}}/
-    audiences: ${SPRING_ENV_AUTH0_AUDIENCE:https://example.auth0.com/api/v2/}
+    audiences: ${SPRING_ENV_AUTH0_AUDIENCE:https://{{projectName}}-api.{{domain}}/api/v1/}
     role-claim-key: {{{roleClaimKey}}}
     {{#tenantIdClaimKey}}
     tenant-claim-key: {{{tenantIdClaimKey}}}

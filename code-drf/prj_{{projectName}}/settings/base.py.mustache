@@ -62,7 +62,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Auth0 Configuration
 AUTH0_DOMAIN = os.environ.get('AUTH0_DOMAIN', '{{{auth0Domain}}}')
-AUTH0_AUDIENCE = os.environ.get('AUTH0_AUDIENCE', '')
+AUTH0_AUDIENCE = os.environ.get('AUTH0_AUDIENCE', 'https://{{projectName}}-api.{{domain}}/api/v1/')
 AUTH0_ROLE_CLAIM_KEY = '{{{roleClaimKey}}}'
 {{#tenantIdClaimKey}}
 AUTH0_TENANT_CLAIM_KEY = '{{{tenantIdClaimKey}}}'
