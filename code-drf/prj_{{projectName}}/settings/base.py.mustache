@@ -1,64 +1,13 @@
-"""
-Django settings for {{{projectName}}} project.
-Base settings shared across all environments.
-Includes Auth0 authentication and RBAC.
-"""
+# Auth0 extension: Configure authentication
+# This appends to base.py settings
 
-from pathlib import Path
-import os
-
-# Build paths inside the project
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-
-# Application definition
-INSTALLED_APPS = [
-    'django.contrib.contenttypes',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'corsheaders',
-    'app_basic',
-    'app_rbac',
+# Override REST Framework authentication settings
+REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'] = [
+    'auth.authentication.Auth0JSONWebTokenAuthentication',
 ]
-
-MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # Note: User sync is done in Auth0JSONWebTokenAuthentication class (not middleware)
+REST_FRAMEWORK['DEFAULT_PERMISSION_CLASSES'] = [
+    'rest_framework.permissions.IsAuthenticated',
 ]
-
-ROOT_URLCONF = 'prj_{{{projectName}}}.urls'
-
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-            ],
-        },
-    },
-]
-
-WSGI_APPLICATION = 'prj_{{{projectName}}}.wsgi.application'
-
-# Internationalization
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
-USE_I18N = True
-USE_TZ = True
-
-# Static files (CSS, JavaScript, Images)
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-# Default primary key field type
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Auth0 Configuration
 # Non-confidential values baked in at generation time (same as Spring)
@@ -75,37 +24,3 @@ AUTH0_TENANT_CLAIM_KEY = ''
 
 # Audience varies per environment - read from env var with fallback
 AUTH0_AUDIENCE = os.environ.get('PYTHON_DRF_AUTH0_AUDIENCE', 'https://{{projectName}}-api.{{domain}}/api/v1/')
-
-# REST Framework with Auth0 Authentication
-REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'auth.authentication.Auth0JSONWebTokenAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'UNAUTHENTICATED_USER': None,
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 100,
-}
-
-# Public URIs that don't require authentication
-# Used by auth middleware to skip authentication for certain paths
-PUBLIC_URIS = [
-    '/',
-    '/api/v1/public/*',
-    '/health',
-    '/admin/*',
-    '/static/*',
-    '/media/*',
-]
-
-# Root and admin users for role assignment (set via environment variables)
-APP_USERS_ROOT = os.environ.get('APP_USERS_ROOT', '')
-APP_USERS_ADMINS = os.environ.get('APP_USERS_ADMINS', '')
