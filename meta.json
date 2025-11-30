@@ -38,6 +38,9 @@
       "authentication-provider": {
         "mode": "conflict",
         "notes": "Provides Auth0 OAuth2 authentication across backend and frontend"
+      },
+      "django-settings": {
+        "mode": "append"
       }
     },
     "onConflict": {
