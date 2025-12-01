@@ -23,4 +23,5 @@ AUTH0_TENANT_CLAIM_KEY = ''
 {{/tenantIdClaimKey}}
 
 # Audience varies per environment - read from env var with fallback
-AUTH0_AUDIENCE = os.environ.get('PYTHON_DRF_AUTH0_AUDIENCE', 'https://{{projectName}}-api.{{domain}}/api/v1/')
+# Check AUTH0_AUDIENCE first (from .env files in dev/CI), then PYTHON_DRF_AUTH0_AUDIENCE (from Secrets Manager in prod)
+AUTH0_AUDIENCE = os.environ.get('AUTH0_AUDIENCE') or os.environ.get('PYTHON_DRF_AUTH0_AUDIENCE', 'https://{{projectName}}-api.{{domain}}/api/v1/')
