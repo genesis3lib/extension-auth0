@@ -17,7 +17,7 @@ export function useApiClient() {
 
   const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8080';
 
-  async function request<T = any>(
+  async function request<T = unknown>(
     path: string,
     options: RequestInit = {}
   ): Promise<T> {
@@ -65,27 +65,27 @@ export function useApiClient() {
   }
 
   return {
-    get: <T = any>(path: string, options?: RequestInit) =>
+    get: <T = unknown>(path: string, options?: RequestInit) =>
       request<T>(path, { ...options, method: 'GET' }),
 
-    post: <T = any>(path: string, body?: any, options?: RequestInit) =>
+    post: <T = unknown>(path: string, body?: unknown, options?: RequestInit) =>
       request<T>(path, {
         ...options,
         method: 'POST',
         body: body ? JSON.stringify(body) : undefined,
       }),
 
-    put: <T = any>(path: string, body?: any, options?: RequestInit) =>
+    put: <T = unknown>(path: string, body?: unknown, options?: RequestInit) =>
       request<T>(path, {
         ...options,
         method: 'PUT',
         body: body ? JSON.stringify(body) : undefined,
       }),
 
-    delete: <T = any>(path: string, options?: RequestInit) =>
+    delete: <T = unknown>(path: string, options?: RequestInit) =>
       request<T>(path, { ...options, method: 'DELETE' }),
 
-    patch: <T = any>(path: string, body?: any, options?: RequestInit) =>
+    patch: <T = unknown>(path: string, body?: unknown, options?: RequestInit) =>
       request<T>(path, {
         ...options,
         method: 'PATCH',
