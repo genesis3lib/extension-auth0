@@ -6,6 +6,7 @@ import { About } from './pages/About';
 import { Terms } from './pages/Terms';
 import { Profile } from './pages/Profile';
 import { Version } from './pages/Version';
+import { PageNotFound } from './pages/PageNotFound';
 import { Auth0Callback } from './pages/Auth0Callback';
 import { Auth0Logout } from './pages/Auth0Logout';
 
@@ -27,6 +28,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>
   );
