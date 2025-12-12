@@ -242,7 +242,7 @@ class Auth0User:
         self.is_active = True
 
         # Extract roles from custom claim
-        role_claim_key = getattr(settings, 'AUTH0_ROLE_CLAIM_KEY', '{{roleClaimKey}}')
+        role_claim_key = getattr(settings, 'AUTH0_ROLE_CLAIM_KEY', '{{{roleClaimKey}}}')
         self.roles = payload.get(role_claim_key, [])
 
     def __str__(self):
