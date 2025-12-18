@@ -1,18 +1,24 @@
 import { useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Auth0 Callback Page
  * This page is shown while Auth0 processes the authentication callback
  */
 export function Auth0Callback() {
-  const { error } = useAuth0();
+  const { isLoading, isAuthenticated, error } = useAuth0();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (error) {
       console.error('Auth0 callback error:', error);
     }
-  }, [error]);
+    // Once Auth0 is done loading and user is authenticated, redirect to home
+    if (!isLoading && isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isLoading, isAuthenticated, error, navigate]);
 
   if (error) {
     return (
@@ -30,9 +36,9 @@ export function Auth0Callback() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">Completing authentication...</h1>
-        <p className="mt-2 text-muted-foreground">Please wait while we log you in.</p>
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <p className="text-muted-foreground">Completing sign in...</p>
       </div>
     </div>
   );
