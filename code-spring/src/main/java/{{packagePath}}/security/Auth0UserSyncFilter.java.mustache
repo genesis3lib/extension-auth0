@@ -11,9 +11,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,17 +38,21 @@ import java.util.List;
  *
  * Flow:
  * 1. Checks if request is authenticated with JWT
- * 2. Extracts user information from JWT claims (email, name, picture, sub)
- * 3. If email is missing from JWT, falls back to Auth0 userinfo endpoint
- * 4. Optionally extracts tenant ID from custom claim
- * 5. Calls UserService to upsert user with role assignment
- * 6. Fails fast with 500 if user sync fails
+ * 2. Determines if user logged in via SSO (Google, GitHub, etc.) or email/password
+ * 3. For email/password users, validates email_verified claim
+ * 4. For SSO users, bypasses email verification (SSO providers verify emails)
+ * 5. Extracts user information from JWT claims (email, name, picture, sub)
+ * 6. If email is missing from JWT, falls back to Auth0 userinfo endpoint
+ * 7. Optionally extracts tenant ID from custom claim
+ * 8. Calls UserService to upsert user with role assignment
+ * 9. Fails fast with 500 if user sync fails
  *
  * @see UserService#createOrUpdateUser
  */
 @Slf4j
 @Component
 @Profile("auth0")
+@Order(Ordered.HIGHEST_PRECEDENCE + 5)
 public class Auth0UserSyncFilter extends OncePerRequestFilter {
 
     private final UserService userService;
@@ -55,8 +63,17 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
     @Value("${app.security.public-uris}")
     private String publicUris;
 
-    @Value("${app.auth0.issuer}")
-    private String auth0Issuer;
+    @Value("${app.auth0.domain}")
+    private String auth0Domain;
+
+    @Value("${app.auth0.issuer:}")
+    private String configuredIssuer;
+
+    @Value("${app.sync.create-user-on-first-login:true}")
+    private boolean createUserOnFirstLogin;
+
+    @Value("${app.sync.update-user-on-each-login:false}")
+    private boolean updateUserOnEachLogin;
 
     {{#tenantIdClaimKey}}
     @Value("${app.auth0.tenant-claim-key:{{tenantIdClaimKey}}}")
@@ -69,6 +86,13 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
         this.objectMapper = new ObjectMapper();
     }
 
+    private String getIssuerUri() {
+        if (configuredIssuer != null && !configuredIssuer.isEmpty()) {
+            return configuredIssuer;
+        }
+        return "https://" + auth0Domain + "/";
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
@@ -76,11 +100,25 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         // Only sync if authenticated with JWT
-        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof Jwt) {
-            Jwt jwt = (Jwt) auth.getPrincipal();
+        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof Jwt jwt) {
+            String auth0UserId = jwt.getSubject();
+            Boolean emailVerified = jwt.getClaimAsBoolean("email_verified");
+
+            // Determine if user logged in via SSO (non-email/password login)
+            // Auth0 user IDs: auth0|xxx = email/password, google-oauth2|xxx = Google, etc.
+            boolean isSsoLogin = !auth0UserId.startsWith("auth0|");
+
+            // Check email verification (bypass for SSO - they verify emails)
+            if (!isSsoLogin && Boolean.FALSE.equals(emailVerified)) {
+                log.warn("Email not verified for user: {}", auth0UserId);
+                response.setStatus(HttpStatus.FORBIDDEN.value());
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.getWriter().write("{\"error\":\"email_not_verified\",\"message\":\"Please verify your email address before accessing this resource\"}");
+                return;
+            }
 
             try {
-                syncUserToDatabase(jwt);
+                syncUserToDatabase(jwt, isSsoLogin);
             } catch (Exception e) {
                 log.error("Failed to sync Auth0 user to database. Failing request.", e);
                 response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -97,14 +135,16 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
      * Synchronizes Auth0 user information to local database
      *
      * @param jwt The validated JWT token containing user claims
+     * @param isSsoLogin Whether the user logged in via SSO (Google, GitHub, etc.)
      */
-    private void syncUserToDatabase(Jwt jwt) {
+    private void syncUserToDatabase(Jwt jwt, boolean isSsoLogin) {
         // Extract user information from JWT claims
         String email = jwt.getClaimAsString("email");
         String auth0Id = jwt.getSubject(); // Format: "auth0|123456" or similar
         String firstName = jwt.getClaimAsString("given_name");
         String lastName = jwt.getClaimAsString("family_name");
         String picture = jwt.getClaimAsString("picture");
+        Boolean emailVerified = jwt.getClaimAsBoolean("email_verified");
 
         // Fallback to Auth0 userinfo endpoint if email is missing from JWT
         if (StringUtils.isBlank(email)) {
@@ -136,21 +176,44 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
         String tenantId = null;
         {{/tenantIdClaimKey}}
 
-        log.info("Syncing Auth0 user to database: email={}, auth0Id={}, tenantId={}", email, auth0Id, tenantId);
+        // Extract auth provider from user ID
+        String authProvider = extractProvider(auth0Id);
+
+        // Email is considered verified if:
+        // 1. email_verified claim is true, OR
+        // 2. User logged in via SSO (SSO providers verify emails)
+        boolean isEmailVerified = Boolean.TRUE.equals(emailVerified) || isSsoLogin;
+
+        log.info("Syncing Auth0 user to database: email={}, auth0Id={}, provider={}, ssoLogin={}, tenantId={}",
+                email, auth0Id, authProvider, isSsoLogin, tenantId);
 
         // Upsert user to database
         // UserService already handles role assignment based on app.users.root and app.users.admins
         userService.createOrUpdateUser(
                 tenantId,
                 email,           // username same as email
-                "auth0",         // external auth provider
+                authProvider,    // external auth provider (auth0, google-oauth2, github, etc.)
                 auth0Id,         // external auth ID
                 firstName,
                 lastName,
-                picture
+                picture,
+                isEmailVerified,
+                createUserOnFirstLogin,
+                updateUserOnEachLogin
         );
 
         log.info("Successfully synced user: {}", email);
+    }
+
+    /**
+     * Extracts the authentication provider from Auth0 user ID.
+     * Examples: auth0|xxx -> auth0, google-oauth2|xxx -> google-oauth2
+     */
+    private String extractProvider(String auth0UserId) {
+        if (auth0UserId != null && auth0UserId.contains("|")) {
+            return auth0UserId.split("\\|")[0];
+        }
+        return "auth0";
     }
 
     /**
@@ -161,10 +224,11 @@ public class Auth0UserSyncFilter extends OncePerRequestFilter {
      * @return Auth0UserInfo containing email and profile information
      */
     private Auth0UserInfo fetchUserInfoFromAuth0(String accessToken) {
+        String issuerUri = getIssuerUri();
         // Build userinfo URL from issuer (e.g., https://tenant.auth0.com/ -> https://tenant.auth0.com/userinfo)
-        String userinfoUrl = auth0Issuer.endsWith("/")
-                ? auth0Issuer + "userinfo"
-                : auth0Issuer + "/userinfo";
+        String userinfoUrl = issuerUri.endsWith("/")
+                ? issuerUri + "userinfo"
+                : issuerUri + "/userinfo";
 
         log.debug("Fetching user info from Auth0: {}", userinfoUrl);
 

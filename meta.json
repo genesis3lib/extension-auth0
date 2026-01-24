@@ -83,6 +83,24 @@
       "required": false,
       "description": "JWT claim key to extract tenant ID from (leave empty for single-tenant apps)",
       "category": "authentication"
+    },
+    {
+      "key": "syncUserOnFirstLogin",
+      "label": "Create User on First Login",
+      "type": "boolean",
+      "default": true,
+      "required": false,
+      "description": "Automatically create local user record on first Auth0 login",
+      "category": "authentication"
+    },
+    {
+      "key": "updateUserOnEachLogin",
+      "label": "Update User on Each Login",
+      "type": "boolean",
+      "default": false,
+      "required": false,
+      "description": "Update user profile from Auth0 on every login",
+      "category": "authentication"
     }
   ],
   "dependencies": {
@@ -139,6 +157,40 @@
       "targets": [
         "backend",
         "frontend"
+      ],
+      "commonForAllEnv": false
+    },
+    {
+      "key": "AUTH0_DOMAIN",
+      "description": "Auth0 domain (tenant.auth0.com)",
+      "example": "your-tenant.auth0.com",
+      "required": true,
+      "secret": false,
+      "targets": [
+        "backend",
+        "frontend"
+      ],
+      "commonForAllEnv": true
+    },
+    {
+      "key": "AUTH0_ISSUER_URI",
+      "description": "Auth0 issuer URI (optional, auto-derived from domain if not set)",
+      "example": "https://your-tenant.auth0.com/",
+      "required": false,
+      "secret": false,
+      "targets": [
+        "backend"
+      ],
+      "commonForAllEnv": true
+    },
+    {
+      "key": "CORS_ALLOWED_ORIGINS",
+      "description": "Comma-separated list of allowed CORS origins (www subdomain auto-included)",
+      "example": "https://example.com,https://app.example.com",
+      "required": false,
+      "secret": false,
+      "targets": [
+        "backend"
       ],
       "commonForAllEnv": false
     }

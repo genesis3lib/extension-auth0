@@ -5,8 +5,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -17,24 +20,31 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfigurationSource;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Auth0 Security Configuration for {{{projectName}}}
  *
  * Provides:
- * - JWT decoder for Auth0 tokens
- * - Role claim mapping to Spring Security authorities
+ * - JWT decoder for Auth0 tokens with auto-derived issuer
+ * - Role claim mapping to Spring Security authorities (normalized to UPPERCASE)
  * - Audience validation
  * - CORS configuration
  * - Configurable public endpoints
+ * - Explicit ordering to avoid conflicts with other OAuth2 providers
  */
 @Configuration
 @Profile("auth0")
+@Order(1)
 public class SecurityAuth0Config {
 
-    @Value("${app.auth0.issuer}")
-    private String issuer;
+    @Value("${app.auth0.domain}")
+    private String auth0Domain;
+
+    @Value("${app.auth0.issuer:}")
+    private String configuredIssuer;
 
     @Value("${app.auth0.audiences}")
     private List<String> audiences;
@@ -46,15 +56,28 @@ public class SecurityAuth0Config {
     private String publicUris;
 
     /**
+     * Gets the issuer URI, auto-deriving from domain if not explicitly configured.
+     * Auth0 issuer is always https://<domain>/
+     */
+    private String getIssuerUri() {
+        if (configuredIssuer != null && !configuredIssuer.isEmpty()) {
+            return configuredIssuer;
+        }
+        // Auto-derive from domain
+        return "https://" + auth0Domain + "/";
+    }
+
+    /**
      * Configures JWT decoder for Auth0 tokens
      */
     @Bean
     public JwtDecoder jwtDecoder() {
-        NimbusJwtDecoder jwtDecoder = JwtDecoders.fromIssuerLocation(issuer);
+        String issuerUri = getIssuerUri();
+        NimbusJwtDecoder jwtDecoder = JwtDecoders.fromIssuerLocation(issuerUri);
 
         // Validate audience
         OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(audiences);
-        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuer);
+        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
         OAuth2TokenValidator<Jwt> withAudience = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);
 
         jwtDecoder.setJwtValidator(withAudience);
@@ -63,34 +86,44 @@ public class SecurityAuth0Config {
     }
 
     /**
-     * Maps Auth0 roles from custom claim to Spring Security authorities
+     * Maps Auth0 roles from custom claim to Spring Security authorities.
+     * Normalizes all roles to UPPERCASE for consistency.
      */
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        grantedAuthoritiesConverter.setAuthoritiesClaimName(roleClaimKey);
+        grantedAuthoritiesConverter.setAuthorityPrefix("ROLE_");
+
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-
-        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
-        authoritiesConverter.setAuthoritiesClaimName(roleClaimKey);
-        authoritiesConverter.setAuthorityPrefix("ROLE_");
-
-        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            Collection<GrantedAuthority> authorities = grantedAuthoritiesConverter.convert(jwt);
+            // Normalize all roles to UPPERCASE for consistency
+            return authorities.stream()
+                .map(auth -> new SimpleGrantedAuthority(auth.getAuthority().toUpperCase()))
+                .collect(Collectors.toList());
+        });
 
         return converter;
     }
 
     /**
-     * Configure Security Filter Chain
+     * Configure Security Filter Chain for API routes.
+     * Uses explicit ordering and security matcher to avoid conflicts with other OAuth2 providers.
+     *
      * - Public endpoints configured via app.security.public-uris
      * - All other endpoints require valid JWT token
      * - Registers Auth0UserSyncFilter to upsert users after JWT validation
      * - Uses shared CORS configuration
      */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, Auth0UserSyncFilter auth0UserSyncFilter, CorsConfigurationSource corsConfigurationSource) throws Exception {
+    @Order(1)
+    public SecurityFilterChain auth0ApiFilterChain(HttpSecurity http, Auth0UserSyncFilter auth0UserSyncFilter, CorsConfigurationSource corsConfigurationSource) throws Exception {
         // Parse public URIs from config
         String[] publicUriPatterns = publicUris.split(",");
 
         http
+            .securityMatcher("/api/**")  // Only apply to API routes
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -106,6 +139,24 @@ public class SecurityAuth0Config {
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
             )
             .addFilterAfter(auth0UserSyncFilter, BearerTokenAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    /**
+     * Configure Security Filter Chain for non-API routes.
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain defaultFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
+        http
+            .securityMatcher("/**")
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+            .csrf(csrf -> csrf.disable())
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/", "/public/**", "/actuator/health", "/actuator/info").permitAll()
+                .anyRequest().authenticated()
+            );
 
         return http.build();
     }

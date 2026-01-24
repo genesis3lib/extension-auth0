@@ -1,11 +1,18 @@
 import { useAuth0 } from '@auth0/auth0-react';
+import { useMemo } from 'react';
 
 /**
  * Custom hook to access Auth0 authentication
  *
+ * Provides:
+ * - Standard Auth0 authentication state (user, isAuthenticated, isLoading)
+ * - SSO detection (Google, GitHub, etc. vs email/password)
+ * - Email verification status with SSO bypass
+ * - Authentication methods (login, logout, tokens)
+ *
  * Usage:
  * ```tsx
- * const { user, isAuthenticated, isLoading, loginWithRedirect, logout } = useAuth();
+ * const { user, isAuthenticated, isLoading, isEmailVerified, isSsoUser, loginWithRedirect, logout } = useAuth();
  *
  * if (isLoading) return <div>Loading...</div>;
  *
@@ -13,9 +20,15 @@ import { useAuth0 } from '@auth0/auth0-react';
  *   return <button onClick={() => loginWithRedirect()}>Log In</button>;
  * }
  *
+ * // Check email verification (SSO users bypass this)
+ * if (!isEmailVerified) {
+ *   return <div>Please verify your email to continue</div>;
+ * }
+ *
  * return (
  *   <div>
  *     <p>Welcome {user?.name}</p>
+ *     {isSsoUser && <span>Logged in via SSO</span>}
  *     <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}>
  *       Log Out
  *     </button>
@@ -26,10 +39,59 @@ import { useAuth0 } from '@auth0/auth0-react';
 export function useAuth() {
   const auth = useAuth0();
 
+  // Extract user sub for stable dependency reference
+  const userSub = auth.user?.sub;
+
+  /**
+   * Determines if user logged in via SSO (non-email/password login).
+   * Auth0 user IDs follow the pattern:
+   * - auth0|xxx = email/password login
+   * - google-oauth2|xxx = Google SSO
+   * - github|xxx = GitHub SSO
+   * - etc.
+   */
+  const isSsoUser = useMemo(() => {
+    if (!userSub) return false;
+    // Auth0 user IDs: auth0|xxx = email/password, anything else = SSO
+    return !userSub.startsWith('auth0|');
+  }, [userSub]);
+
+  /**
+   * Determines the authentication provider from the user ID.
+   * Examples: auth0, google-oauth2, github, facebook, etc.
+   */
+  const authProvider = useMemo(() => {
+    if (!userSub) return null;
+    if (userSub.includes('|')) {
+      return userSub.split('|')[0];
+    }
+    return 'unknown';
+  }, [userSub]);
+
+  /**
+   * Email is considered verified if:
+   * 1. email_verified claim is true, OR
+   * 2. User logged in via SSO (SSO providers verify emails)
+   *
+   * This prevents SSO users from being incorrectly flagged for email verification.
+   */
+  const isEmailVerified = useMemo(() => {
+    if (!auth.user) return false;
+    return auth.user.email_verified === true || isSsoUser;
+  }, [auth.user, isSsoUser]);
+
   return {
+    // User information
     user: auth.user,
     isAuthenticated: auth.isAuthenticated,
     isLoading: auth.isLoading,
+
+    // SSO and email verification
+    isSsoUser,
+    isEmailVerified,
+    authProvider,
+
+    // Authentication methods
     loginWithRedirect: auth.loginWithRedirect,
     logout: auth.logout,
     getAccessTokenSilently: auth.getAccessTokenSilently,

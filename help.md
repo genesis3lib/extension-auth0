@@ -167,7 +167,7 @@ These are the credentials from your Auth0 application. You'll need to get these 
 **Problem**: Auth0 rejects the login redirect.
 
 **Solution**: Make sure you've added your application URLs to the Auth0 Application settings:
-- Go to Applications � Applications � Your App � Settings
+- Go to Applications → Applications → Your App → Settings
 - Add URLs to "Allowed Callback URLs" (e.g., `http://localhost:5173`, `https://myapp.com`)
 - Add URLs to "Allowed Logout URLs"
 - Click "Save Changes"
@@ -177,7 +177,7 @@ These are the credentials from your Auth0 application. You'll need to get these 
 
 **Solution**:
 - Verify the `AUTH0_AUDIENCE` matches your API Identifier exactly
-- Make sure you've created an API in Auth0 Dashboard (Applications � APIs)
+- Make sure you've created an API in Auth0 Dashboard (Applications → APIs)
 
 ### "Unauthorized"
 **Problem**: Backend rejects authenticated requests.
@@ -186,6 +186,113 @@ These are the credentials from your Auth0 application. You'll need to get these 
 - Verify `AUTH0_DOMAIN` matches your tenant domain
 - Verify `AUTH0_CLIENT_SECRET` is correct
 - Check that the Auth0 Application and API are in the same tenant
+
+### CORS Error with www Subdomain
+**Problem**: CORS blocks requests from `www.example.com` when only `example.com` is configured.
+
+**Solution**: The extension automatically includes www variants for each allowed origin. Make sure you've set:
+- `CORS_ALLOWED_ORIGINS=https://example.com` - www.example.com will be auto-included
+- Or explicitly add both: `CORS_ALLOWED_ORIGINS=https://example.com,https://www.example.com`
+
+### SSO Users Flagged for Email Verification
+**Problem**: Users who logged in via Google, GitHub, or other SSO providers are incorrectly asked to verify their email.
+
+**Solution**: This is automatically handled. SSO users bypass email verification because SSO providers verify emails. If you still see issues:
+- Check that the frontend uses `isEmailVerified` from `useAuth()` hook
+- Backend automatically detects SSO based on user ID prefix (e.g., `google-oauth2|...`)
+
+### Role Case Sensitivity Issues
+**Problem**: Roles from Auth0 are lowercase but application expects uppercase (e.g., "admin" vs "ADMIN").
+
+**Solution**: The extension normalizes all roles to UPPERCASE automatically. Ensure:
+- Your role checks use uppercase: `@PreAuthorize("hasRole('ADMIN')")`
+- Frontend checks should also use uppercase
+
+### OAuth2 Provider Conflicts
+**Problem**: When using Auth0 with another OAuth2 provider, security configurations conflict.
+
+**Solution**: The extension uses explicit `@Order` annotations and security matchers:
+- Auth0 API filter chain has `@Order(1)` and applies to `/api/**` routes
+- Default filter chain has `@Order(2)` for other routes
+- If adding another OAuth2 provider, ensure proper ordering
+
+### Issuer URI Configuration
+**Problem**: Need to customize the Auth0 issuer URI.
+
+**Solution**: The issuer is auto-derived from `AUTH0_DOMAIN`. To override:
+- Set `AUTH0_ISSUER_URI=https://custom-domain.auth0.com/`
+- If not set, defaults to `https://${AUTH0_DOMAIN}/`
+
+---
+
+## Advanced Configuration
+
+### CORS Configuration for Production
+
+**IMPORTANT**: By default, if `CORS_ALLOWED_ORIGINS` is not configured, the application allows all origins (wildcard) for development convenience. This is **NOT secure for production**.
+
+Before deploying to production, you MUST configure CORS:
+
+```bash
+# Set allowed origins (comma-separated)
+CORS_ALLOWED_ORIGINS=https://myapp.com,https://app.myapp.com
+```
+
+**Features:**
+- Automatically includes `www.` variants (e.g., `https://myapp.com` also allows `https://www.myapp.com`)
+- Supports multiple origins
+- Logs allowed origins at startup
+
+**Example configurations:**
+
+```bash
+# Single domain with auto www
+CORS_ALLOWED_ORIGINS=https://myapp.com
+
+# Multiple domains
+CORS_ALLOWED_ORIGINS=https://myapp.com,https://admin.myapp.com,https://api.myapp.com
+
+# Development with specific ports
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+```
+
+**What happens without CORS_ALLOWED_ORIGINS:**
+- Application logs a warning: "⚠️ CORS SECURITY WARNING: No CORS_ALLOWED_ORIGINS configured!"
+- All origins are allowed (development mode)
+- Credentials are still supported (using `allowedOriginPatterns`)
+
+### User Sync Options
+
+Control how users are synchronized from Auth0 to your database:
+
+| Config | Default | Description |
+|--------|---------|-------------|
+| `syncUserOnFirstLogin` | `true` | Create local user record on first login |
+| `updateUserOnEachLogin` | `false` | Update user profile from Auth0 on every login |
+
+Runtime override:
+- `AUTH0_SYNC_CREATE_USER=true/false`
+- `AUTH0_SYNC_UPDATE_USER=true/false`
+
+### SSO Detection
+
+The extension detects SSO vs email/password login based on user ID prefix:
+- `auth0|...` = Email/password login
+- `google-oauth2|...` = Google SSO
+- `github|...` = GitHub SSO
+- `facebook|...` = Facebook SSO
+- etc.
+
+Backend code:
+```java
+boolean isSsoLogin = !auth0UserId.startsWith("auth0|");
+```
+
+Frontend code:
+```typescript
+const { isSsoUser, authProvider } = useAuth();
+// isSsoUser: true if logged in via SSO
+// authProvider: "auth0", "google-oauth2", "github", etc.
 
 ---
 

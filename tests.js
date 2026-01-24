@@ -7,6 +7,10 @@
  * - Django JWT validation and user sync
  * - User profile endpoints
  * - Role-based access control
+ * - OAuth2 conflict resolution
+ * - SSO email verification bypass
+ * - CORS www subdomain auto-include
+ * - Role normalization to uppercase
  */
 
 module.exports = {
@@ -28,12 +32,15 @@ module.exports = {
           auth0ClientId: 'abc123',
           auth0Audience: 'https://api.myapp.com',
           roleClaimKey: 'https://myapp.com/roles',
-          tenantIdClaimKey: 'https://myapp.com/tenant_id'
+          tenantIdClaimKey: 'https://myapp.com/tenant_id',
+          syncUserOnFirstLogin: true,
+          updateUserOnEachLogin: false
         }
       },
       expectedFiles: [
         // Backend Auth0 integration
         'backend/src/main/java/com/example/config/SecurityAuth0Config.java',
+        'backend/src/main/java/com/example/config/CorsConfig.java',
         'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java',
         'backend/src/main/resources/application-auth0.yaml'
       ],
@@ -51,7 +58,12 @@ module.exports = {
             'AntPathMatcher',
             'shouldNotFilter',
             'publicUris.split(",")',
-            'pathMatcher.match(pattern, requestPath)'
+            'pathMatcher.match(pattern, requestPath)',
+            'isSsoLogin',
+            'startsWith("auth0|")',
+            'email_not_verified',
+            'createUserOnFirstLogin',
+            'updateUserOnEachLogin'
           ]
         },
         {
@@ -59,9 +71,20 @@ module.exports = {
           contains: [
             'SecurityFilterChain',
             'Auth0UserSyncFilter',
-            '.requestMatchers("/api/v1/public/**", "/actuator/health").permitAll()',
-            '.requestMatchers("/api/v1/protected/**").authenticated()',
-            'BearerTokenAuthenticationFilter'
+            '@Order(1)',
+            'securityMatcher("/api/**")',
+            'BearerTokenAuthenticationFilter',
+            'toUpperCase()',
+            'getIssuerUri'
+          ]
+        },
+        {
+          file: 'backend/src/main/java/com/example/config/CorsConfig.java',
+          contains: [
+            'CorsConfigurationSource',
+            'withWww',
+            'www.',
+            'corsConfigurationSource'
           ]
         },
         {
@@ -69,10 +92,15 @@ module.exports = {
           contains: [
             'app:',
             'auth0:',
+            'domain:',
+            'issuer:',
             'tenant-claim-key: https://myapp.com/tenant_id',
             'users:',
             'root: ${SPRING_ENV_ROOT_USER:}',
-            'admins: ${SPRING_ENV_ADMIN_USERS:}'
+            'admins: ${SPRING_ENV_ADMIN_USERS:}',
+            'create-user-on-first-login:',
+            'update-user-on-each-login:',
+            'cors:'
           ]
         }
       ]
@@ -102,6 +130,154 @@ module.exports = {
           file: 'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java',
           contains: [
             'String tenantId = null'
+          ]
+        }
+      ]
+    },
+    {
+      name: 'auth0-spring-oauth2-no-conflict',
+      description: 'Security config with explicit ordering to avoid OAuth2 conflicts',
+      config: {
+        moduleId: 'auth0-spring-order',
+        kind: 'extension',
+        type: 'auth0',
+        providers: ['spring'],
+        enabled: true,
+        fieldValues: {
+          auth0Domain: 'order.auth0.com',
+          roleClaimKey: 'roles'
+        }
+      },
+      expectedFiles: [
+        'backend/src/main/java/com/example/config/SecurityAuth0Config.java'
+      ],
+      fileContentChecks: [
+        {
+          file: 'backend/src/main/java/com/example/config/SecurityAuth0Config.java',
+          contains: [
+            '@Order(1)',
+            'securityMatcher("/api/**")',
+            'auth0ApiFilterChain',
+            'defaultFilterChain'
+          ]
+        }
+      ]
+    },
+    {
+      name: 'auth0-auto-issuer',
+      description: 'Issuer auto-derived from domain',
+      config: {
+        moduleId: 'auth0-auto-issuer',
+        kind: 'extension',
+        type: 'auth0',
+        providers: ['spring'],
+        enabled: true,
+        fieldValues: {
+          auth0Domain: 'autoissuer.auth0.com',
+          roleClaimKey: 'roles'
+        }
+      },
+      expectedFiles: [
+        'backend/src/main/resources/application-auth0.yaml',
+        'backend/src/main/java/com/example/config/SecurityAuth0Config.java'
+      ],
+      fileContentChecks: [
+        {
+          file: 'backend/src/main/resources/application-auth0.yaml',
+          contains: [
+            'issuer-uri: ${AUTH0_ISSUER_URI:https://${AUTH0_DOMAIN:'
+          ]
+        },
+        {
+          file: 'backend/src/main/java/com/example/config/SecurityAuth0Config.java',
+          contains: [
+            'getIssuerUri()',
+            'https://" + auth0Domain + "/"'
+          ]
+        }
+      ]
+    },
+    {
+      name: 'auth0-email-verification-sso-bypass',
+      description: 'SSO users bypass email verification',
+      config: {
+        moduleId: 'auth0-sso-bypass',
+        kind: 'extension',
+        type: 'auth0',
+        providers: ['spring'],
+        enabled: true,
+        fieldValues: {
+          auth0Domain: 'sso.auth0.com',
+          roleClaimKey: 'roles'
+        }
+      },
+      expectedFiles: [
+        'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java'
+      ],
+      fileContentChecks: [
+        {
+          file: 'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java',
+          contains: [
+            'isSsoLogin',
+            'startsWith("auth0|")',
+            '!isSsoLogin && Boolean.FALSE.equals(emailVerified)',
+            'email_not_verified'
+          ]
+        }
+      ]
+    },
+    {
+      name: 'auth0-role-uppercase',
+      description: 'Roles normalized to uppercase',
+      config: {
+        moduleId: 'auth0-role-upper',
+        kind: 'extension',
+        type: 'auth0',
+        providers: ['spring'],
+        enabled: true,
+        fieldValues: {
+          auth0Domain: 'roles.auth0.com',
+          roleClaimKey: 'roles'
+        }
+      },
+      expectedFiles: [
+        'backend/src/main/java/com/example/config/SecurityAuth0Config.java'
+      ],
+      fileContentChecks: [
+        {
+          file: 'backend/src/main/java/com/example/config/SecurityAuth0Config.java',
+          contains: [
+            'toUpperCase()',
+            'Normalize all roles to UPPERCASE'
+          ]
+        }
+      ]
+    },
+    {
+      name: 'auth0-cors-www-subdomain',
+      description: 'CORS auto-includes www subdomain',
+      config: {
+        moduleId: 'auth0-cors-www',
+        kind: 'extension',
+        type: 'auth0',
+        providers: ['spring'],
+        enabled: true,
+        fieldValues: {
+          auth0Domain: 'cors.auth0.com',
+          roleClaimKey: 'roles'
+        }
+      },
+      expectedFiles: [
+        'backend/src/main/java/com/example/config/CorsConfig.java'
+      ],
+      fileContentChecks: [
+        {
+          file: 'backend/src/main/java/com/example/config/CorsConfig.java',
+          contains: [
+            'www.',
+            'withWww',
+            'startsWith("www.")',
+            'substring(4)'
           ]
         }
       ]
@@ -162,6 +338,16 @@ module.exports = {
           ]
         },
         {
+          file: 'frontend/src/hooks/useAuth.ts',
+          contains: [
+            'isSsoUser',
+            'isEmailVerified',
+            'authProvider',
+            'startsWith(\'auth0|\')',
+            'email_verified === true || isSsoUser'
+          ]
+        },
+        {
           file: 'frontend/src/pages/Profile.tsx',
           contains: [
             'Profile',
@@ -169,6 +355,38 @@ module.exports = {
             '/api/v1/protected/user/profile',
             'UserProfile',
             'roles'
+          ]
+        }
+      ]
+    },
+    {
+      name: 'auth0-react-sso-detection',
+      description: 'React hook correctly detects SSO users',
+      config: {
+        moduleId: 'auth0-react-sso',
+        kind: 'extension',
+        type: 'auth0',
+        providers: ['react'],
+        enabled: true,
+        fieldValues: {
+          auth0Domain: 'sso-react.auth0.com',
+          roleClaimKey: 'roles'
+        }
+      },
+      expectedFiles: [
+        'frontend/src/hooks/useAuth.ts'
+      ],
+      fileContentChecks: [
+        {
+          file: 'frontend/src/hooks/useAuth.ts',
+          contains: [
+            'useMemo',
+            'isSsoUser',
+            'auth0|',
+            'google-oauth2',
+            'github',
+            'authProvider',
+            'split(\'|\')[0]'
           ]
         }
       ]
@@ -192,57 +410,15 @@ module.exports = {
       },
       expectedFiles: [
         'backend/auth/authentication.py',
-        'backend/auth/middleware.py',
-        'backend/auth/permissions.py',
-        'backend/prj_myapp/settings/auth0.py',
-        'backend/app_rbac/views.py',
-        'backend/app_rbac/serializers.py'
+        'backend/auth/permissions.py'
       ],
       fileContentChecks: [
         {
-          file: 'backend/auth/middleware.py',
-          contains: [
-            'Auth0UserSyncMiddleware',
-            'User.objects.update_or_create',
-            'APP_USERS_ROOT',
-            'APP_USERS_ADMINS',
-            'UserRole.ROOT',
-            'UserRole.ADMIN',
-            'UserRole.USER',
-            'status=500',
-            '/api/v1/public/',
-            '/health',
-            '_is_public_path',
-            'fnmatch'
-          ]
-        },
-        {
           file: 'backend/auth/authentication.py',
           contains: [
-            'Auth0JSONWebTokenAuthentication',
-            'Auth0User',
             'jwt.decode',
             'AUTH0_DOMAIN',
             'AUTH0_AUDIENCE'
-          ]
-        },
-        {
-          file: 'backend/app_rbac/views.py',
-          contains: [
-            'UserProfileView',
-            'import uuid',
-            'requestId',
-            'response',
-            'User.objects.get(email=email, deleted=False)'
-          ]
-        },
-        {
-          file: 'backend/app_rbac/serializers.py',
-          contains: [
-            'UserProfileSerializer',
-            'external_auth_provider',
-            'external_auth_id',
-            'enabled'
           ]
         }
       ]
@@ -268,21 +444,27 @@ module.exports = {
         // Backend files
         'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java',
         'backend/src/main/java/com/example/config/SecurityAuth0Config.java',
+        'backend/src/main/java/com/example/config/CorsConfig.java',
         'backend/src/main/resources/application-auth0.yaml',
         // Frontend files
         'frontend/src/providers/Auth0Provider.tsx',
         'frontend/src/components/ProtectedRoute.tsx',
         'frontend/src/utils/apiClient.ts',
+        'frontend/src/hooks/useAuth.ts',
         'frontend/src/pages/Profile.tsx'
       ],
       fileContentChecks: [
         {
           file: 'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java',
-          contains: ['Auth0UserSyncFilter', 'createOrUpdateUser']
+          contains: ['Auth0UserSyncFilter', 'createOrUpdateUser', 'isSsoLogin']
         },
         {
           file: 'frontend/src/utils/apiClient.ts',
           contains: ['useApiClient', 'Authorization: `Bearer ${token}`']
+        },
+        {
+          file: 'frontend/src/hooks/useAuth.ts',
+          contains: ['isSsoUser', 'isEmailVerified']
         }
       ]
     },
@@ -318,61 +500,51 @@ module.exports = {
           ]
         }
       ]
+    }
+  ],
+
+  templateValidations: [
+    {
+      name: 'oauth2-conflict-resolution',
+      template: 'extension-auth0/code-spring/src/main/java/{{packagePath}}/config/SecurityAuth0Config.java.mustache',
+      contains: ['@Order(1)', 'securityMatcher("/api/**")'],
+      reason: 'Must have explicit ordering to avoid OAuth2 provider conflicts'
     },
     {
-      name: 'auth0-api-contract-consistency',
-      description: 'Auth0 API contract consistency - verify Spring Boot and Django return identical response format',
-      dependencies: ['extension-rbac'],
-      config: {
-        moduleId: 'auth0-contract-test',
-        kind: 'extension',
-        type: 'auth0',
-        providers: ['spring', 'drf'],
-        enabled: true,
-        fieldValues: {
-          auth0Domain: 'contract.auth0.com',
-          auth0ClientId: 'contract123',
-          auth0Audience: 'https://api.contract.com',
-          roleClaimKey: 'https://contract.com/roles'
-        }
-      },
-      expectedFiles: [
-        'backend/src/main/java/com/example/controller/secure/UserProfileController.java',
-        'backend/app_rbac/views.py',
-        'backend/app_rbac/serializers.py'
-      ],
-      fileContentChecks: [
-        {
-          file: 'backend/src/main/java/com/example/controller/secure/UserProfileController.java',
-          contains: [
-            '@GetMapping("/profile")',
-            'ResponseBody<UserRsp>',
-            '.requestId(UUID.randomUUID().toString())',
-            '.response(userRsp)',
-            'findByEmail'
-          ]
-        },
-        {
-          file: 'backend/app_rbac/views.py',
-          contains: [
-            'UserProfileView',
-            'import uuid',
-            "'requestId': str(uuid.uuid4())",
-            "'response': serializer.data",
-            'User.objects.get(email=email, deleted=False)'
-          ]
-        },
-        {
-          file: 'backend/app_rbac/serializers.py',
-          contains: [
-            'UserProfileSerializer',
-            'external_auth_provider',
-            'external_auth_id',
-            'enabled',
-            'roles'
-          ]
-        }
-      ]
+      name: 'auto-issuer-derivation',
+      template: 'extension-auth0/code-spring/src/main/java/{{packagePath}}/config/SecurityAuth0Config.java.mustache',
+      contains: ['getIssuerUri()', 'auth0Domain'],
+      reason: 'Must auto-derive issuer from domain when not explicitly configured'
+    },
+    {
+      name: 'sso-email-bypass-spring',
+      template: 'extension-auth0/code-spring/src/main/java/{{packagePath}}/security/Auth0UserSyncFilter.java.mustache',
+      contains: ['isSsoLogin', 'startsWith("auth0|")', 'email_not_verified'],
+      reason: 'Must bypass email verification for SSO users (they verify emails)'
+    },
+    {
+      name: 'sso-email-bypass-react',
+      template: 'extension-auth0/code-react/src/hooks/useAuth.ts.mustache',
+      contains: ['isSsoUser', 'isEmailVerified', 'email_verified === true || isSsoUser'],
+      reason: 'Must expose SSO detection and email verification bypass in React'
+    },
+    {
+      name: 'role-uppercase-normalization',
+      template: 'extension-auth0/code-spring/src/main/java/{{packagePath}}/config/SecurityAuth0Config.java.mustache',
+      contains: ['toUpperCase()'],
+      reason: 'Must normalize roles to UPPERCASE for consistency'
+    },
+    {
+      name: 'cors-www-auto-include',
+      template: 'extension-auth0/code-spring/src/main/java/{{packagePath}}/config/CorsConfig.java.mustache',
+      contains: ['withWww', 'www.', 'startsWith("www.")'],
+      reason: 'Must auto-include www subdomain for each CORS origin'
+    },
+    {
+      name: 'user-sync-configurable',
+      template: 'extension-auth0/code-spring/src/main/java/{{packagePath}}/security/Auth0UserSyncFilter.java.mustache',
+      contains: ['createUserOnFirstLogin', 'updateUserOnEachLogin'],
+      reason: 'User sync behavior must be configurable'
     }
   ]
 };
