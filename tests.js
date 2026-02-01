@@ -500,6 +500,74 @@ module.exports = {
           ]
         }
       ]
+    },
+    {
+      name: 'auth0-with-digitalocean-provider',
+      description: 'Auth0 with DigitalOcean provider - verify secrets work with DO deployment',
+      config: {
+        moduleId: 'auth0-do',
+        kind: 'extension',
+        type: 'auth0',
+        providers: ['spring', 'digitalocean'],
+        enabled: true,
+        fieldValues: {
+          auth0Domain: 'do-test.auth0.com',
+          auth0ClientId: 'do123',
+          auth0Audience: 'https://api.do-test.com',
+          roleClaimKey: 'https://do-test.com/roles',
+          syncUserOnFirstLogin: true
+        }
+      },
+      expectedFiles: [
+        'backend/src/main/java/com/example/config/SecurityAuth0Config.java',
+        'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java',
+        'backend/src/main/resources/application-auth0.yaml'
+      ],
+      fileContentChecks: [
+        {
+          file: 'backend/src/main/resources/application-auth0.yaml',
+          contains: [
+            'AUTH0_DOMAIN',
+            'AUTH0_CLIENT_ID'
+          ]
+        }
+      ]
+    },
+    {
+      name: 'auth0-fullstack-digitalocean',
+      description: 'Auth0 full-stack with DigitalOcean - Spring + React + DO',
+      config: {
+        moduleId: 'auth0-fullstack-do',
+        kind: 'extension',
+        type: 'auth0',
+        providers: ['spring', 'react', 'digitalocean'],
+        enabled: true,
+        fieldValues: {
+          auth0Domain: 'fullstack-do.auth0.com',
+          auth0ClientId: 'fullstack-do-123',
+          auth0Audience: 'https://api.fullstack-do.com',
+          roleClaimKey: 'https://fullstack-do.com/roles',
+          tenantIdClaimKey: 'https://fullstack-do.com/tenant_id'
+        }
+      },
+      expectedFiles: [
+        // Backend files
+        'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java',
+        'backend/src/main/java/com/example/config/SecurityAuth0Config.java',
+        // Frontend files
+        'frontend/src/providers/Auth0Provider.tsx',
+        'frontend/src/hooks/useAuth.ts'
+      ],
+      fileContentChecks: [
+        {
+          file: 'backend/src/main/java/com/example/security/Auth0UserSyncFilter.java',
+          contains: ['Auth0UserSyncFilter', 'createOrUpdateUser']
+        },
+        {
+          file: 'frontend/src/hooks/useAuth.ts',
+          contains: ['isSsoUser', 'isEmailVerified']
+        }
+      ]
     }
   ],
 

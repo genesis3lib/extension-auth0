@@ -145,7 +145,8 @@
       "targets": [
         "backend"
       ],
-      "commonForAllEnv": false
+      "commonForAllEnv": false,
+      "gitStoreKey": "AUTH0_CLIENT_SECRET"
     },
     {
       "key": "AUTH0_AUDIENCE",
